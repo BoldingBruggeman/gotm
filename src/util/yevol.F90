@@ -1,4 +1,4 @@
-!$Id: yevol.F90,v 1.1 2001-02-12 15:55:57 gotm Exp $
+!$Id: yevol.F90,v 1.1.1.1 2001-02-12 15:55:57 gotm Exp $
 #include"cppdefs.h"
 !-----------------------------------------------------------------------
 !BOP
@@ -40,8 +40,8 @@
 !  Original author(s): Pierre-Philippe Mathieu
 !
 !  $Log: yevol.F90,v $
-!  Revision 1.1  2001-02-12 15:55:57  gotm
-!  Initial revision
+!  Revision 1.1.1.1  2001-02-12 15:55:57  gotm
+!  initial import into CVS
 !
 !
 ! !LOCAL VARIABLES:

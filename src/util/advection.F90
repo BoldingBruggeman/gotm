@@ -1,4 +1,4 @@
-!$Id: advection.F90,v 1.1 2001-02-12 15:55:57 gotm Exp $
+!$Id: advection.F90,v 1.1.1.1 2001-02-12 15:55:57 gotm Exp $
 #include"cppdefs.h"
 !-----------------------------------------------------------------------
 !BOP
@@ -43,8 +43,8 @@
 !  Original author(s): Hans Burchard & Karsten Bolding 
 !
 !  $Log: advection.F90,v $
-!  Revision 1.1  2001-02-12 15:55:57  gotm
-!  Initial revision
+!  Revision 1.1.1.1  2001-02-12 15:55:57  gotm
+!  initial import into CVS
 !
 !
 ! !LOCAL VARIABLES:

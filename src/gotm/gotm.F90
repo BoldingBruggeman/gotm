@@ -1,4 +1,4 @@
-!$Id: gotm.F90,v 1.1 2001-02-12 15:55:59 gotm Exp $
+!$Id: gotm.F90,v 1.1.1.1 2001-02-12 15:55:59 gotm Exp $
 #include"cppdefs.h"
 !-----------------------------------------------------------------------
 !BOP
@@ -80,8 +80,8 @@
 !  Original author(s): Karsten Bolding & Hans Burchard
 !
 !  $Log: gotm.F90,v $
-!  Revision 1.1  2001-02-12 15:55:59  gotm
-!  Initial revision
+!  Revision 1.1.1.1  2001-02-12 15:55:59  gotm
+!  initial import into CVS
 !
 !
 ! !LOCAL VARIABLES:

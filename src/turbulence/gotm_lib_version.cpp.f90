@@ -1,5 +1,5 @@
 # 1 "gotm_lib_version.F90"
-!$Id: gotm_lib_version.cpp.f90,v 1.1 2001-02-12 15:55:58 gotm Exp $
+!$Id: gotm_lib_version.cpp.f90,v 1.1.1.1 2001-02-12 15:55:58 gotm Exp $
 # 1 "../../include//cppdefs.h" 1
 ! This file is include in all .F90 files and contains very important
 ! definitions. Infact GOTM will not compile when this file is not
@@ -97,8 +97,8 @@
 !  Original author(s): Karsten Bolding & Hans Burchard
 !
 !  $Log: gotm_lib_version.cpp.f90,v $
-!  Revision 1.1  2001-02-12 15:55:58  gotm
-!  Initial revision
+!  Revision 1.1.1.1  2001-02-12 15:55:58  gotm
+!  initial import into CVS
 !
 !
 ! !LOCAL VARIABLES:

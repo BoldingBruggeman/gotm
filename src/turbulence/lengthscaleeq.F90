@@ -1,4 +1,4 @@
-!$Id: lengthscaleeq.F90,v 1.1 2001-02-12 15:55:58 gotm Exp $
+!$Id: lengthscaleeq.F90,v 1.1.1.1 2001-02-12 15:55:58 gotm Exp $
 #include"cppdefs.h"
 !-----------------------------------------------------------------------
 !BOP
@@ -45,8 +45,8 @@
 !  Original author(s): Hans Burchard & Karsten Bolding 
 !
 !  $Log: lengthscaleeq.F90,v $
-!  Revision 1.1  2001-02-12 15:55:58  gotm
-!  Initial revision
+!  Revision 1.1.1.1  2001-02-12 15:55:58  gotm
+!  initial import into CVS
 !
 !
 ! !LOCAL VARIABLES:
