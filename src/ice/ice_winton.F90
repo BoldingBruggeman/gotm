@@ -171,6 +171,16 @@
    if (present(kmelt_in)) then
       KMELT = kmelt_in
    endif
+   LEVEL2 'Winton sea ice model parameter values:'
+   LEVEL2 'ALB_SNO =', ALB_SNO
+   LEVEL2 'ALB_ICE =', ALB_ICE
+   LEVEL2 'PEN_ICE =', PEN_ICE
+   LEVEL2 'OPT_DEP_ICE =', OPT_DEP_ICE
+   LEVEL2 'OPT_EXT_ICE =', OPT_EXT_ICE
+   LEVEL2 'OPT_EXT_SNOW =', OPT_EXT_SNOW
+   LEVEL2 'T_RANGE_MELT =', T_RANGE_MELT
+   LEVEL2 'H_LO_LIM =', H_LO_LIM
+   LEVEL2 'KMELT =', KMELT
 
 end subroutine init_ice_winton
 
