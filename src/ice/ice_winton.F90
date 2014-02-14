@@ -282,7 +282,7 @@ end subroutine init_ice_winton
 !     during sub freezing SST conditions all available energy is converted
 !     to bottom freezing energy
       fb = (T - tfw)*h*rho_0*CW/dt
-      T= tfw
+      T = tfw
       if (ts .lt. -500.) then
          STDERR 'do_ice: frazil ice formation', fb, tfw, T-tfw
       endif
@@ -291,7 +291,7 @@ end subroutine init_ice_winton
 !     with the linear form described in eq. (15) in "FMS Sea Ice Simulator"
       fb = KMELT*(T - tfw)
       if (ts .lt. -500.) then
-         STDERR 'do_ice: ocean to bottom ice melting', fb
+         STDERR 'do_ice: ocean to bottom ice melting', fb, T, tfw
       endif
    end if
 !
@@ -364,14 +364,13 @@ end subroutine init_ice_winton
          STDERR 'Incoming surface heat = ', heat
       endif
    endif
-   call do_thermodynamics(A,B,I,tfw,fb,precip,dt,hs,hi,t1,t2,evap,tmelt, &
+   call do_thermodynamics(A,B,I,tfw,fb,dt,hs,hi,t1,t2,precip,evap,tmelt, &
                                 bmelt,ts)
 !
-!  When ice is present when do_ice_winton is called heat and precipitation
-!  are consumed in that subroutine and should therefore be set to zero. 
+!  When ice is present when do_ice_winton is called heat
+!  is consumed in that subroutine and should therefore be set to zero. 
    if (has_ice .or. hi .gt. _ZERO_) then
       heat = _ZERO_
-      precip = _ZERO_
    endif
 !  the returned quantities in tmelt and bmelt are
 !  surplus energy that was not used for melting or was released during
@@ -392,7 +391,7 @@ end subroutine do_ice_winton
 ! !ROUTINE: Calculate ice thermodynamics \label{sec:do_ice_winton}
 !
 ! !INTERFACE:
-   subroutine do_thermodynamics(A,B,I,tfw,fb,precip,dt,hs,hi,t1,t2,evap,tmelt, &
+   subroutine do_thermodynamics(A,B,I,tfw,fb,dt,hs,hi,t1,t2,precip,evap,tmelt, &
                                 bmelt,ts)
 !
 ! !DESCRIPTION:
@@ -420,13 +419,13 @@ end subroutine do_ice_winton
    REALTYPE, intent(in)      :: I     ! solar absorbed by upper ice (W/m^2)
    REALTYPE, intent(in)      :: tfw   ! seawater freezing temperature (deg-C)
    REALTYPE, intent(in)      :: fb    ! heat flux from ocean to ice bottom (W/m^2)
-   REALTYPE, intent(in)      :: precip! freshwater precipitatin (m/s)
    REALTYPE, intent(in)      :: dt    ! timestep (sec)
 ! !INPUT/OUTPUT PARAMETERS:
    REALTYPE, intent(inout)   :: hs    ! snow thickness (m)
    REALTYPE, intent(inout)   :: hi    ! ice thickness (m)
    REALTYPE, intent(inout)   :: t1    ! upper ice temperature (deg-C)
    REALTYPE, intent(inout)   :: t2    ! lower ice temperature (deg-C)
+   REALTYPE, intent(inout)   :: precip! freshwater precipitatin (m/s)
    REALTYPE, intent(inout)   :: evap  ! evaporation of ice (m/s)
 ! !OUTPUT PARAMETERS:
    REALTYPE, intent(out)     :: tmelt ! accumulated top melting energy  (J/m^2)
@@ -531,16 +530,12 @@ end subroutine do_ice_winton
       endif
 !
 !     temperature update complete - check consistency
-!KB      call ice_consistency(ts, hs, hi, t1, t2, bmelt, tmelt)
+!      call ice_consistency(ts, hs, hi, t1, t2, bmelt, tmelt)
    endif
 !
 !  update snow and sea ice thicknesses and accompanying temperature updates
    h1 = hi/2
    h2 = h1
-!
-!  calculate snow rate [m/s] and add it to snow height
-   snow = precip*DFW/DS
-   hs = hs + snow*dt
 !
 !  apply freezing
    if (hi <= _ZERO_ .and. fb < _ZERO_) then
@@ -633,18 +628,24 @@ end subroutine do_ice_winton
 !
 !  calculate updated sea ice thickness
    hi = h1 + h2
+   if (hi > _ZERO_) then
+!     calculate snow rate [m/s] and add it to snow height
+      snow = precip*DFW/DS
+      hs = hs + snow*dt
+      precip = _ZERO_
 !
-!  determine the water line by taking the mass (per unit square)
-!  of the snow and ice and dividing it by the density of seawater.
-   hw = (DI*hi+DS*hs)/DW
+!     determine the water line by taking the mass (per unit square)
+!     of the snow and ice and dividing it by the density of seawater.
+      hw = (DI*hi+DS*hs)/DW
 !
-!  convert snow to ice to maintain ice at waterline
-   if (hw > hi) then
-      snow_to_ice = (hw-hi)*DI
-      hs = hs - snow_to_ice/DS
-!     the snow is added to the top ice layer preserving enthalpy
-!     t1 is therefore also changed during the consersion, see eq. (38).
-      call add_to_top(hw-hi, TFI, h1, t1)
+!     convert snow to ice to maintain ice at waterline
+      if (hw > hi) then
+         snow_to_ice = (hw-hi)*DI
+         hs = hs - snow_to_ice/DS
+!        the snow is added to the top ice layer preserving enthalpy
+!        t1 is therefore also changed during the consersion, see eq. (38).
+         call add_to_top(hw-hi, TFI, h1, t1)
+      endif
    endif
 !
 !  Even up layer thicknesses and t2 according to eq. (40)
@@ -659,7 +660,7 @@ end subroutine do_ice_winton
    endif
 !
 !  postconditions
-!KB   call ice_consistency(ts, hs, hi, t1, t2, bmelt, tmelt)
+!   call ice_consistency(ts, hs, hi, t1, t2, bmelt, tmelt)
 
    !LEVEL0 'end do_thermodynamics'
    return
@@ -690,11 +691,10 @@ end subroutine do_ice_winton
 !EOP
 !-----------------------------------------------------------------------
 !BOC
-   if (ts>_ZERO_ .or. t1>TFI .or. t2>_ZERO_ .or. hs<_ZERO_ .or. hs>100.0 &
-     & .or. hi<_ZERO_ .or. hi>100.0 .or. abs(bmelt)>100.0*DI*LI &
-     & .or. tmelt<_ZERO_ .or. tmelt>100.0*DI*LI) then
+   if (ts>_ZERO_ .or. t1>_ZERO_ .or. t2>_ZERO_ .or. hs<_ZERO_ .or. hs>100.0 &
+     & .or. hi<_ZERO_ .or. hi>100.0) then
       FATAL 'UNREASONABLE ICE: hs=',hs,'hi=',hi,'t1=',t1,'t2=',t2,'ts=', &
-     &        ts,'tmelt=',tmelt,'bmelt=',bmelt
+     &        ts
       stop 'ice_consistency'
    end if
 end subroutine ice_consistency
