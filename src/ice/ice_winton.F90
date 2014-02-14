@@ -53,7 +53,7 @@
    private
 !
 ! !PUBLIC MEMBER FUNCTIONS:
-!   public                              :: init_ice_winton
+   public                              :: init_ice_winton
    public                              :: do_ice_winton
    public                              :: ice_optics
 !
@@ -114,6 +114,65 @@
 !-----------------------------------------------------------------------
 
    contains
+
+!BOP
+!
+! !ROUTINE: Initialize sea ice model \label{sec:init_ice_winton}
+!
+! !INTERFACE:
+   subroutine init_ice_winton(alb_sno_in, alb_ice_in, pen_ice_in, &
+              opt_dep_ice_in, opt_ext_ice_in, opt_ext_snow_in, &
+              t_range_melt_in, h_lo_lim_in, kmelt_in)
+!
+! !DESCRIPTION:
+!  This subroutine initializes sea model parameters.
+!
+! !USES:
+   IMPLICIT NONE
+!
+! !INPUT PARAMETERS:
+   REALTYPE, optional, intent(in) :: alb_sno_in   ! albedo of snow
+   REALTYPE, optional, intent(in) :: alb_ice_in   ! albedo of ice
+   REALTYPE, optional, intent(in) :: pen_ice_in   ! ice surf. pen. solar fraction
+   REALTYPE, optional, intent(in) :: opt_dep_ice_in ! ice optical depth
+   REALTYPE, optional, intent(in) :: opt_ext_ice_in ! ice optical extinction
+   REALTYPE, optional, intent(in) :: opt_ext_snow_in ! snow optical extinction
+   REALTYPE, optional, intent(in) :: t_range_melt_in ! temp. range for scaling alb.
+   REALTYPE, optional, intent(in) :: h_lo_lim_in    ! hi/hs lower limit
+   REALTYPE, optional, intent(in) :: kmelt_in       ! ocean/ice heat flux const.
+!
+!EOP
+!-----------------------------------------------------------------------
+!BOC
+   if (present(alb_sno_in)) then
+      ALB_SNO = alb_sno_in
+   endif
+   if (present(alb_ice_in)) then
+      ALB_ICE = alb_ice_in
+   endif
+   if (present(pen_ice_in)) then
+      PEN_ICE = pen_ice_in
+   endif
+   if (present(opt_dep_ice_in)) then
+      OPT_DEP_ICE = opt_dep_ice_in
+   endif
+   if (present(opt_ext_ice_in)) then
+      OPT_EXT_ICE = opt_ext_ice_in
+   endif
+   if (present(opt_ext_snow_in)) then
+      OPT_EXT_SNOW = opt_ext_snow_in
+   endif
+   if (present(t_range_melt_in)) then
+      T_RANGE_MELT = t_range_melt_in
+   endif
+   if (present(h_lo_lim_in)) then
+      H_LO_LIM = h_lo_lim_in
+   endif
+   if (present(kmelt_in)) then
+      KMELT = kmelt_in
+   endif
+
+end subroutine init_ice_winton
 
 !BOP
 !
@@ -192,6 +251,7 @@
    REALTYPE        :: qb, qe, qh, tx, ty
    REALTYPE        :: qbm, qem, qhm
    REALTYPE        :: A, B, dts
+   REALTYPE        :: ice_alb
    logical         :: has_ice
 !
 ! !LOCAL PARAMETERS:
@@ -199,7 +259,7 @@
 !EOP
 !-----------------------------------------------------------------------
 !BOC
-   LEVEL0 'do_ice_winton'
+   !LEVEL0 'do_ice_winton'
    if (hi .gt. _ZERO_) then
       has_ice = .true.
    else
@@ -213,19 +273,25 @@
 !     to bottom freezing energy
       fb = (T - tfw)*h*rho_0*CW/dt
       T= tfw
-      STDERR 'do_ice: frazil ice formation', fb, tfw, T-tfw
+      if (ts .lt. -500.) then
+         STDERR 'do_ice: frazil ice formation', fb, tfw, T-tfw
+      endif
    else if (has_ice) then
 !     when sea ice is present there is an ocean to sea ice heat flux, see eq. (23)
 !     with the linear form described in eq. (15) in "FMS Sea Ice Simulator"
       fb = KMELT*(T - tfw)
-      STDERR 'do_ice: ocean to bottom ice melting', fb
+      if (ts .lt. -500.) then
+         STDERR 'do_ice: ocean to bottom ice melting', fb
+      endif
    end if
 !
    if (has_ice) then
 !     Calculate short wave radiation albedo, penetration, transmissivity
 !     and adjust incoming solar with the albedo
       I_0 = I_0/(_ONE_-alb) ! Here alb is water albedo
-      call ice_optics(alb, pen, trn, hs, hi, ts, tfw)
+      call ice_optics(ice_alb, pen, trn, hs, hi, ts, tfw)
+      !alb = max(alb, ice_alb)
+      !alb = 0.65
       I_0 = I_0*(_ONE_-alb) ! Here alb is ice albedo
 !
 !     Calculate how much solar is absorbed by the ice (I). We do not use the
@@ -240,7 +306,9 @@
    if (has_ice) then
 !     Calculate latent, sensible and long wave heat flux when sea
 !     ice is present
-      STDERR 'heat ocean =', heat
+      if (ts .lt. -500.) then
+         STDERR 'heat ocean =', heat
+      endif
 !
 !     Recalculate surface fluxes for sea ice conditions
       call humidity(hum_method,rh,airp,ts,airt)
@@ -249,7 +317,11 @@
       call airsea_fluxes(fluxes_method,.false.,.false., &
                          ts,airt,u10,v10,precip,evap,tx,ty,qe,qh)
       heat = (qb+qe+qh)
-      STDERR 'heat ice =', heat
+      if (ts .lt. -500.) then
+         STDERR 'heat ice =', heat
+         STDERR 'heat components =', qb,qe,qh
+         STDERR 'heat inputs =', rh, airp, ts, airt, lat, kelvin, cloud, u10, v10, precip, evap
+      endif
 !
 !     Calculate derivative of heat with respect to sea ice surface temp.
       dts = 0.01
@@ -259,10 +331,12 @@
       call airsea_fluxes(fluxes_method,.false.,.false., &
                          ts-dts,airt,u10,v10,precip,evap,tx,ty,qem,qhm)
       B = (-heat + (qbm+qem+qhm))/dts
-      STDERR 'd(-heat)/d(ts) =', B
+      if (ts .lt. -500.) then
+         STDERR 'd(-heat)/d(ts) =', B
+      endif
    endif
    A = -heat
-   STDERR A, B
+   !STDERR A, B
 !
 !  Convert evaporation from m/s surface ocean water to corresponding
 !  evaporation of ice in m/s
@@ -274,15 +348,17 @@
 !
 !  Update snow and sea ice properties
    if (has_ice) then
-      STDERR 'Incoming bottom heat= ', fb
-      STDERR 'Incoming solar heat = ', I
-      STDERR 'Incoming surface heat = ', heat
+      if (ts .lt. -500.) then
+         STDERR 'Incoming bottom heat= ', fb
+         STDERR 'Incoming solar heat = ', I
+         STDERR 'Incoming surface heat = ', heat
+      endif
    endif
    call do_thermodynamics(A,B,I,tfw,fb,precip,dt,hs,hi,t1,t2,evap,tmelt, &
                                 bmelt,ts)
 !
-!  When ice is present when do_ice_winton is called heat is consumed in
-!  that subroutine and should therefore be set to zero.
+!  When ice is present when do_ice_winton is called heat and precipitation
+!  are consumed in that subroutine and should therefore be set to zero. 
    if (has_ice .or. hi .gt. _ZERO_) then
       heat = _ZERO_
       precip = _ZERO_
@@ -361,7 +437,7 @@ end subroutine do_ice_winton
 !EOP
 !-----------------------------------------------------------------------
 !BOC
-   LEVEL0 'do_thermodynamics'
+   !LEVEL0 'do_thermodynamics'
 !
 !  initialize surface temperature to zero (just to avoid strange output)
    ts = _ZERO_
@@ -375,7 +451,7 @@ end subroutine do_ice_winton
 !
 !  temperature update is only performed when there is ice
    if (hi > _ZERO_) then
-      STDERR 'do_thermodynamics: sea ice is present:', hi
+      !STDERR 'do_thermodynamics: sea ice is present:', hi
 !
 !     set surface temperature to snow temperature or seawater freezing temp.
 !     TODO: refactor into a sub called update_t1_and_ts(hs, hie, dt, t1, t2)
@@ -458,7 +534,7 @@ end subroutine do_ice_winton
 !
 !  apply freezing
    if (hi <= _ZERO_ .and. fb < _ZERO_) then
-      LEVEL0 'ice_winton: frazil ice formation', fb, bmelt
+      !LEVEL0 'ice_winton: frazil ice formation', fb, bmelt
       bmelt = bmelt + fb*dt
       t1 = tfw
       t2 = tfw
@@ -575,7 +651,7 @@ end subroutine do_ice_winton
 !  postconditions
 !KB   call ice_consistency(ts, hs, hi, t1, t2, bmelt, tmelt)
 
-   LEVEL0 'end do_thermodynamics'
+   !LEVEL0 'end do_thermodynamics'
    return
    end subroutine do_thermodynamics
 !EOC

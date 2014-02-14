@@ -13,7 +13,8 @@
 ! !USES:
    use time,             only: julianday, secondsofday
    use airsea_variables, only: emiss,bolz,kelvin
-   use ice_winton,       only: do_ice_winton, ice_optics, KMELT, CW
+   use ice_winton,       only: init_ice_winton, do_ice_winton, ice_optics, &
+                               KMELT, CW
    use meanflow,         only: h,T,S,rho,rho_0
    use airsea,           only: heat,I_0,albedo,precip,evap,cloud,swr_method,airt, &
                                airp,rh,u10,v10,back_radiation_method,hum_method, &
@@ -76,7 +77,10 @@
 !  Original author(s): Karsten Bolding
 !
 ! !LOCAL VARIABLES:
-   namelist /ice/ ice_method
+   REALTYPE :: alb_sno, alb_ice, pen_ice, opt_dep_ice, opt_ext_ice, &
+               opt_ext_snow, t_range_melt, h_lo_lim, kmelt
+   namelist /ice/ ice_method, alb_sno, alb_ice, pen_ice, opt_dep_ice, &
+                  opt_ext_ice, opt_ext_snow, t_range_melt, h_lo_lim, kmelt
 !EOP
 !-----------------------------------------------------------------------
 !BOC
@@ -85,7 +89,16 @@
    lon = longitude
 
 !  initialize namelist variables to reasonable defaults.
-   ice_method=0
+   ice_method   = 0
+   alb_sno      = 0.85
+   alb_ice      = 0.5826
+   pen_ice      = 0.3
+   opt_dep_ice  = 0.67
+   opt_ext_ice  = 1.5
+   opt_ext_snow = 15.0
+   t_range_melt = _ONE_
+   h_lo_lim     = 0.1
+   kmelt        = 6e-5*4e6
 
 !  Read namelist variables from file.
    open(namlst,file='ice.nml',action='read',status='old',err=90)
@@ -103,6 +116,10 @@
          LEVEL2 'Thermodynamic ice model adapted from Winton'
          ice_hs=_ZERO_;ice_hi=_ZERO_;ice_T1=_ZERO_;ice_T2=_ZERO_
          ice_ts=_ZERO_;ice_tmelt=_ZERO_;ice_bmelt=_ZERO_
+         call  init_ice_winton(alb_sno, alb_ice, pen_ice, &
+               opt_dep_ice, opt_ext_ice, opt_ext_snow, t_range_melt, &
+               h_lo_lim, kmelt)
+
       case default
    end select
 
