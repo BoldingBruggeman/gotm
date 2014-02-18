@@ -77,10 +77,11 @@
 !  Original author(s): Karsten Bolding
 !
 ! !LOCAL VARIABLES:
-   REALTYPE :: alb_sno, alb_ice, pen_ice, opt_dep_ice, opt_ext_ice, &
-               opt_ext_snow, t_range_melt, h_lo_lim, kmelt
-   namelist /ice/ ice_method, alb_sno, alb_ice, pen_ice, opt_dep_ice, &
-                  opt_ext_ice, opt_ext_snow, t_range_melt, h_lo_lim, kmelt
+   REALTYPE :: alb_sno, ks, alb_ice, pen_ice, opt_dep_ice, opt_ext_ice, &
+               opt_ext_snow, t_range_melt, h_lo_lim, kmelt, t_range_dhdt
+   namelist /ice/ ice_method, ks, alb_sno, alb_ice, pen_ice, opt_dep_ice, &
+                  opt_ext_ice, opt_ext_snow, t_range_melt, h_lo_lim, kmelt, &
+                  t_range_dhdt
 !EOP
 !-----------------------------------------------------------------------
 !BOC
@@ -90,6 +91,7 @@
 
 !  initialize namelist variables to reasonable defaults.
    ice_method   = 0
+   ks           = 0.31
    alb_sno      = 0.85
    alb_ice      = 0.5826
    pen_ice      = 0.3
@@ -99,6 +101,7 @@
    t_range_melt = _ONE_
    h_lo_lim     = 0.1
    kmelt        = 6e-5*4e6
+   t_range_dhdt = 0.1
 
 !  Read namelist variables from file.
    open(namlst,file='ice.nml',action='read',status='old',err=90)
@@ -116,10 +119,9 @@
          LEVEL2 'Thermodynamic ice model adapted from Winton'
          ice_hs=_ZERO_;ice_hi=_ZERO_;ice_T1=_ZERO_;ice_T2=_ZERO_
          ice_ts=_ZERO_;ice_tmelt=_ZERO_;ice_bmelt=_ZERO_
-         call  init_ice_winton(alb_sno, alb_ice, pen_ice, &
+         call  init_ice_winton(ks, alb_sno, alb_ice, pen_ice, &
                opt_dep_ice, opt_ext_ice, opt_ext_snow, t_range_melt, &
-               h_lo_lim, kmelt)
-
+               h_lo_lim, kmelt, t_range_dhdt)
       case default
    end select
 

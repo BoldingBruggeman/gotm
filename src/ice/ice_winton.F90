@@ -63,7 +63,7 @@
 ! !DEFINED PARAMETERS:
 !  properties of ice, snow, and seawater (NCAR CSM values)
 !  thermal conductivity of snow [W/(mK)]
-   REALTYPE, parameter       :: KS=0.31
+   REALTYPE                  :: KS=0.31
 !  density of snow [kg/(m^3)]
    REALTYPE, parameter       :: DS=330.0
 !  thermal conductivity of ice [W/(mK)]
@@ -106,6 +106,8 @@
    REALTYPE                  :: H_LO_LIM=0.1
 !  ocean/ice heat flux constant
    REALTYPE                  :: KMELT=6e-5*4e6
+!  temperature range for calculating d(heat)/d(ts)
+   REALTYPE                  :: T_RANGE_DHDT=0.1
 !
 ! !REVISION HISTORY:
 !  Original author: Michael Winton
@@ -120,9 +122,9 @@
 ! !ROUTINE: Initialize sea ice model \label{sec:init_ice_winton}
 !
 ! !INTERFACE:
-   subroutine init_ice_winton(alb_sno_in, alb_ice_in, pen_ice_in, &
+   subroutine init_ice_winton(ks_in, alb_sno_in, alb_ice_in, pen_ice_in, &
               opt_dep_ice_in, opt_ext_ice_in, opt_ext_snow_in, &
-              t_range_melt_in, h_lo_lim_in, kmelt_in)
+              t_range_melt_in, h_lo_lim_in, kmelt_in, t_range_dhdt_in)
 !
 ! !DESCRIPTION:
 !  This subroutine initializes sea model parameters.
@@ -131,6 +133,7 @@
    IMPLICIT NONE
 !
 ! !INPUT PARAMETERS:
+   REALTYPE, optional, intent(in) :: ks_in   ! thermal conduct. of snow
    REALTYPE, optional, intent(in) :: alb_sno_in   ! albedo of snow
    REALTYPE, optional, intent(in) :: alb_ice_in   ! albedo of ice
    REALTYPE, optional, intent(in) :: pen_ice_in   ! ice surf. pen. solar fraction
@@ -140,10 +143,14 @@
    REALTYPE, optional, intent(in) :: t_range_melt_in ! temp. range for scaling alb.
    REALTYPE, optional, intent(in) :: h_lo_lim_in    ! hi/hs lower limit
    REALTYPE, optional, intent(in) :: kmelt_in       ! ocean/ice heat flux const.
+   REALTYPE, optional, intent(in) :: t_range_dhdt_in ! t range calc. d(heat)/d(ts)
 !
 !EOP
 !-----------------------------------------------------------------------
 !BOC
+   if (present(ks_in)) then
+      KS = ks_in
+   endif
    if (present(alb_sno_in)) then
       ALB_SNO = alb_sno_in
    endif
@@ -171,7 +178,11 @@
    if (present(kmelt_in)) then
       KMELT = kmelt_in
    endif
+   if (present(t_range_dhdt_in)) then
+      T_RANGE_DHDT = t_range_dhdt_in
+   endif
    LEVEL2 'Winton sea ice model parameter values:'
+   LEVEL2 'KS =', KS
    LEVEL2 'ALB_SNO =', ALB_SNO
    LEVEL2 'ALB_ICE =', ALB_ICE
    LEVEL2 'PEN_ICE =', PEN_ICE
@@ -181,6 +192,7 @@
    LEVEL2 'T_RANGE_MELT =', T_RANGE_MELT
    LEVEL2 'H_LO_LIM =', H_LO_LIM
    LEVEL2 'KMELT =', KMELT
+   LEVEL2 'T_RANGE_DHDT =', T_RANGE_DHDT
 
 end subroutine init_ice_winton
 
@@ -260,7 +272,7 @@ end subroutine init_ice_winton
    REALTYPE        :: h1, h2, dh
    REALTYPE        :: qb, qe, qh, tx, ty
    REALTYPE        :: qbm, qem, qhm
-   REALTYPE        :: A, B, dts
+   REALTYPE        :: A, B
    REALTYPE        :: ice_alb
    logical         :: has_ice
 !
@@ -334,13 +346,12 @@ end subroutine init_ice_winton
       endif
 !
 !     Calculate derivative of heat with respect to sea ice surface temp.
-      dts = 0.01
-      call humidity(hum_method,rh,airp,ts-dts,airt)
+      call humidity(hum_method,rh,airp,ts-T_RANGE_DHDT,airt)
       call back_radiation(back_radiation_method, &
-                          lat,ts+kelvin-dts,airt+kelvin,cloud,qbm)
+                          lat,ts+kelvin-T_RANGE_DHDT,airt+kelvin,cloud,qbm)
       call airsea_fluxes(fluxes_method,.false.,.false., &
-                         ts-dts,airt,u10,v10,precip,evap,tx,ty,qem,qhm)
-      B = (-heat + (qbm+qem+qhm))/dts
+                         ts-T_RANGE_DHDT,airt,u10,v10,precip,evap,tx,ty,qem,qhm)
+      B = (-heat + (qbm+qem+qhm))/T_RANGE_DHDT
       if (ts .lt. -500.) then
          STDERR 'd(-heat)/d(ts) =', B
       endif
