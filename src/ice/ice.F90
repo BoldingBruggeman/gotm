@@ -18,7 +18,7 @@
    use meanflow,         only: h,T,S,rho,rho_0
    use airsea,           only: heat,I_0,albedo,precip,evap,cloud,swr_method,airt, &
                                airp,rh,u10,v10,back_radiation_method,hum_method, &
-                               fluxes_method
+                               fluxes_method,tx,ty
 !
    IMPLICIT NONE
 
@@ -150,7 +150,7 @@
    IMPLICIT NONE
 !
 ! !REVISION HISTORY:
-!  Original author(s): Karsten Bolding, Jesper Larsen
+!  Original author(s): Karsten Bolding, Jesper Baasch-Larsen
 !
 ! !LOCAL VARIABLES:
    REALTYPE        :: tfw
@@ -160,7 +160,6 @@
 !EOP
 !-----------------------------------------------------------------------
 !BOC
-
 !  The different ice models
    select case (ice_method)
       case (0)

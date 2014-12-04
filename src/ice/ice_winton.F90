@@ -282,6 +282,9 @@ end subroutine init_ice_winton
 !-----------------------------------------------------------------------
 !BOC
    !LEVEL0 'do_ice_winton'
+
+   ! preconditions
+
    if (hi .gt. _ZERO_) then
       has_ice = .true.
    else
@@ -295,26 +298,31 @@ end subroutine init_ice_winton
 !     to bottom freezing energy
       fb = (T - tfw)*h*rho_0*CW/dt
       T = tfw
-      if (ts .lt. -500.) then
+      if (ts .lt. -100*_ONE_) then
          STDERR 'do_ice: frazil ice formation', fb, tfw, T-tfw
       endif
    else if (has_ice) then
 !     when sea ice is present there is an ocean to sea ice heat flux, see eq. (23)
 !     with the linear form described in eq. (15) in "FMS Sea Ice Simulator"
       fb = KMELT*(T - tfw)
-      if (ts .lt. -500.) then
+      if (ts .lt. -100*_ONE_) then
          STDERR 'do_ice: ocean to bottom ice melting', fb, T, tfw
       endif
    end if
 !
    if (has_ice) then
+!     Solar radiation from GOTM has already taken albedo into account. We want
+!     the value without this albedo correction
+      I_0 = I_0/(_ONE_-alb) ! Here alb is water albedo
+!
 !     Calculate short wave radiation albedo, penetration, transmissivity
 !     and adjust incoming solar with the albedo
-      I_0 = I_0/(_ONE_-alb) ! Here alb is water albedo
       call ice_optics(ice_alb, pen, trn, hs, hi, ts, tfw)
+      !alb = ice_alb
       !alb = max(alb, ice_alb)
       !alb = 0.65
-      I_0 = I_0*(_ONE_-alb) ! Here alb is ice albedo
+!     Apply ice albedo on short wave radiation
+      I_0 = I_0*(_ONE_-alb)
 !
 !     Calculate how much solar is absorbed by the ice (I). We do not use the
 !     part absorbed by the snow for anything. The solar radiation penetrating
@@ -328,7 +336,7 @@ end subroutine init_ice_winton
    if (has_ice) then
 !     Calculate latent, sensible and long wave heat flux when sea
 !     ice is present
-      if (ts .lt. -500.) then
+      if (ts .lt. -100*_ONE_) then
          STDERR 'heat ocean =', heat
       endif
 !
@@ -339,7 +347,7 @@ end subroutine init_ice_winton
       call airsea_fluxes(fluxes_method,.false.,.false., &
                          ts,airt,u10,v10,precip,evap,tx,ty,qe,qh)
       heat = (qb+qe+qh)
-      if (ts .lt. -500.) then
+      if (ts .lt. -100*_ONE_) then
          STDERR 'heat ice =', heat
          STDERR 'heat components =', qb,qe,qh
          STDERR 'heat inputs =', rh, airp, ts, airt, lat, kelvin, cloud, u10, v10, precip, evap
@@ -352,7 +360,7 @@ end subroutine init_ice_winton
       call airsea_fluxes(fluxes_method,.false.,.false., &
                          ts-T_RANGE_DHDT,airt,u10,v10,precip,evap,tx,ty,qem,qhm)
       B = (-heat + (qbm+qem+qhm))/T_RANGE_DHDT
-      if (ts .lt. -500.) then
+      if (ts .lt. -100*_ONE_) then
          STDERR 'd(-heat)/d(ts) =', B
       endif
    endif
@@ -369,7 +377,7 @@ end subroutine init_ice_winton
 !
 !  Update snow and sea ice properties
    if (has_ice) then
-      if (ts .lt. -500.) then
+      if (ts .lt. -100*_ONE_) then
          STDERR 'Incoming bottom heat= ', fb
          STDERR 'Incoming solar heat = ', I
          STDERR 'Incoming surface heat = ', heat
@@ -511,6 +519,7 @@ end subroutine do_ice_winton
 !     update lower ice temperature we perform the update using temperature
 !     deviations from tfw for better thin ice precision
 !     TODO: refactor into a sub called update_t2(hs, hie, dt, t1, t2)
+!
 !     convert to temperature deviations for better thin ice precision
       t1 = t1-tfw;
       t2 = t2-tfw;
@@ -643,7 +652,9 @@ end subroutine do_ice_winton
 !     calculate snow rate [m/s] and add it to snow height
       snow = precip*DFW/DS
       hs = hs + snow*dt
-      precip = _ZERO_
+!      FIXME: We do not yet model mass fluxes - so we let the precipiation
+!      go into the ocean as well
+!      precip = _ZERO_
 !
 !     determine the water line by taking the mass (per unit square)
 !     of the snow and ice and dividing it by the density of seawater.
@@ -654,7 +665,7 @@ end subroutine do_ice_winton
          snow_to_ice = (hw-hi)*DI
          hs = hs - snow_to_ice/DS
 !        the snow is added to the top ice layer preserving enthalpy
-!        t1 is therefore also changed during the consersion, see eq. (38).
+!        t1 is therefore also changed during the conversion, see eq. (38).
          call add_to_top(hw-hi, TFI, h1, t1)
       endif
    endif
@@ -671,7 +682,7 @@ end subroutine do_ice_winton
    endif
 !
 !  postconditions
-!   call ice_consistency(ts, hs, hi, t1, t2, bmelt, tmelt)
+   call ice_consistency(ts, hs, hi, t1, t2, bmelt, tmelt)
 
    !LEVEL0 'end do_thermodynamics'
    return
