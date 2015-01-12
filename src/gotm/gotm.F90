@@ -33,6 +33,7 @@
 !  \end{itemize}
 !
 ! !USES:
+   use output_manager
    use meanflow
    use input
    use observations
@@ -206,6 +207,7 @@
    LEVEL2 trim(name)
 
    LEVEL2 'initializing modules....'
+   call output_manager_init(nlev)
    call init_input(nlev)
    call init_time(MinN,MaxN)
    call init_eqstate(namlst)
@@ -393,6 +395,7 @@
    if (write_results) then
       call do_all_output(0_timestepkind)
    end if
+   call output_manager_save(julianday,secondsofday)
    LEVEL1 'time_loop'
    do n=MinN,MaxN
 
@@ -492,6 +495,7 @@
       if (write_results) then
          call do_all_output(n)
       end if
+      call output_manager_save(julianday,secondsofday)
 
       call integrated_fluxes(dt)
 
@@ -608,6 +612,8 @@
 #endif
 
    call close_input()
+
+   call output_manager_clean()
 
    return
    end subroutine clean_up

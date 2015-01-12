@@ -176,6 +176,11 @@ endif(GOTM_USE_FABM)
 
 if(NOT GOTM_BUILD_LIBRARIES_ONLY)
 
+add_library(output_manager OBJECT
+            output/output_manager.F90
+           )
+add_dependencies(output_manager util fabm)
+
 add_library(input OBJECT
             input/input.F90
            )
@@ -194,7 +199,7 @@ add_library(airsea OBJECT
             airsea/albedo_water.F90
            )
 set_property(TARGET airsea APPEND PROPERTY COMPILE_DEFINITIONS GUSTINESS)
-add_dependencies(airsea util input)
+add_dependencies(airsea util input output_manager)
 
 add_library(observations OBJECT
             observations/analytical_profile.F90
@@ -220,7 +225,7 @@ add_library(meanflow OBJECT
             meanflow/updategrid.F90
             meanflow/vequation.F90
            )
-add_dependencies(meanflow util observations)
+add_dependencies(meanflow util observations output_manager)
 
 add_library(output OBJECT
             output/asciiout.F90
@@ -297,6 +302,7 @@ add_executable(gotm_exe
                $<TARGET_OBJECTS:meanflow>
                $<TARGET_OBJECTS:observations>
                $<TARGET_OBJECTS:output>
+               $<TARGET_OBJECTS:output_manager>
                $<TARGET_OBJECTS:input>
                ${EXTRA_SRCS}
               )
@@ -346,8 +352,15 @@ add_executable(test_airsea EXCLUDE_FROM_ALL
                airsea/test_airsea.F90
                $<TARGET_OBJECTS:airsea>
                $<TARGET_OBJECTS:input>
+               $<TARGET_OBJECTS:output_manager>
               )
-target_link_libraries(test_airsea util)
+target_link_libraries(test_airsea util fabm)
+if(GOTM_USE_NetCDF)
+  target_link_libraries(test_airsea "${NetCDF_LIBRARIES}")
+  if (NetCDF_STATIC_MSVC_BUILD)
+    set_property(TARGET test_airsea PROPERTY LINK_FLAGS_DEBUG "/NODEFAULTLIB:\"libcmt\"")
+  endif()
+endif(GOTM_USE_NetCDF)
 
 add_executable(test_eqstate EXCLUDE_FROM_ALL
                util/test_eqstate.F90

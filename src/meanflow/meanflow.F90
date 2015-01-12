@@ -12,6 +12,8 @@
 !  calculation and also makes the proper initialisations.
 !
 ! !USES:
+   use output_manager
+
    IMPLICIT NONE
 !  Default all is private.
    private
@@ -279,10 +281,12 @@
    allocate(T(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (T)'
    T = _ZERO_
+   call output_manager_register_field('temp', id_dim_z, 'Celsius', 'temperature', standard_name='sea_water_temperature', data=T(1:nlev))
 
    allocate(S(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (S)'
    S = _ZERO_
+   call output_manager_register_field('salt', id_dim_z, 'g/kg', 'salinity', standard_name='sea_water_practical_salinity', data=S(1:nlev))
 
    allocate(rho(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (rho)'
