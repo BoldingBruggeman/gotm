@@ -181,7 +181,7 @@ add_library(output_manager OBJECT
            )
 add_dependencies(output_manager util)
 set_property(TARGET output_manager APPEND PROPERTY INCLUDE_DIRECTORIES "${FABM_INCLUDE_DIRS}")
-set_property(TARGET output_manager APPEND PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${FABM_INCLUDE_DIRS}")
+target_link_libraries(output_manager ${FABM_LIBRARIES})
 
 add_library(input OBJECT
             input/input.F90

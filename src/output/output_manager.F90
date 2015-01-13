@@ -88,8 +88,8 @@ module output_manager
    end type
 
    interface output_manager_register_field
-      procedure register_field_0d
-      procedure register_field_1d
+      module procedure register_field_0d
+      module procedure register_field_1d
    end interface
 
    type (type_available_field),pointer :: first_available_field
