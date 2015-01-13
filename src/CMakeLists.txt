@@ -179,9 +179,8 @@ if(NOT GOTM_BUILD_LIBRARIES_ONLY)
 add_library(output_manager OBJECT
             output/output_manager.F90
            )
-add_dependencies(output_manager util)
+add_dependencies(output_manager util ${FABM_LIBRARIES})
 set_property(TARGET output_manager APPEND PROPERTY INCLUDE_DIRECTORIES "${FABM_INCLUDE_DIRS}")
-target_link_libraries(output_manager ${FABM_LIBRARIES})
 
 add_library(input OBJECT
             input/input.F90
