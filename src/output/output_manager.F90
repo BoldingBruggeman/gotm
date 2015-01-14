@@ -9,7 +9,8 @@ module output_manager
 
    implicit none
 
-   public output_manager_init, output_manager_save, output_manager_clean, output_manager_register_field
+   public output_manager_init, output_manager_save, output_manager_clean
+   public output_manager_register_field, output_manager_send_data
    public id_dim_z,id_dim_z1
 
    private
@@ -90,6 +91,13 @@ module output_manager
    interface output_manager_register_field
       module procedure register_field_0d
       module procedure register_field_1d
+   end interface
+
+   interface output_manager_send_data
+      procedure send_data_0d
+      procedure send_data_1d
+      procedure send_data_by_name_0d
+      procedure send_data_by_name_1d
    end interface
 
    type (type_available_field),pointer :: first_available_field
@@ -182,6 +190,17 @@ contains
       end do
    end subroutine add_field
    
+   function find_field(name) result(field)
+      character(len=*),intent(in) :: name
+      type (type_available_field), pointer :: field
+
+      field => first_available_field
+      do while (associated(field))
+         if (field%name==name) return
+         field => field%next
+      end do
+   end function find_field
+
    subroutine register_field_0d(name, units, long_name, standard_name, fill_value, minimum, maximum, data, used)
       character(len=*),          intent(in)  :: name, units, long_name
       character(len=*),optional, intent(in)  :: standard_name
@@ -192,7 +211,7 @@ contains
       type (type_available_field), pointer :: field
 
       allocate(field)
-      if (present(data)) field%data_0d => data
+      if (present(data)) call send_data_0d(field,data)
       call add_field(field, name, units, long_name, standard_name, fill_value, minimum, maximum, used=used)
    end subroutine register_field_0d
    
@@ -207,13 +226,45 @@ contains
       type (type_available_field), pointer :: field
 
       allocate(field)
-      if (present(data)) then
-         if (size(data)/=nz) call fatal_error('register_field_1d', &
-            'length of data array provided for variable '//trim(name)//' does not match extents of the vertical domain.')
-         field%data_1d => data
-      end if
+      if (present(data)) call send_data_1d(field,data)
       call add_field(field, name, units, long_name, standard_name, fill_value, minimum, maximum, (/dimension/), used)
    end subroutine register_field_1d
+
+   subroutine send_data_by_name_0d(name, data)
+      character(len=*),intent(in) :: name
+      real(rk),        target     :: data
+
+      type (type_available_field), pointer :: field
+
+      field => find_field(name)
+      if (.not.associated(field)) call fatal_error('send_data_by_name_0d','Field "'//trim(name)//'" has not been registered.')
+      call send_data_0d(field,data)
+   end subroutine send_data_by_name_0d
+
+   subroutine send_data_by_name_1d(name, data)
+      character(len=*),intent(in) :: name
+      real(rk),        target     :: data(:)
+
+      type (type_available_field), pointer :: field
+
+      field => find_field(name)
+      if (.not.associated(field)) call fatal_error('send_data_by_name_1d','Field "'//trim(name)//'" has not been registered.')
+      call send_data_1d(field,data)
+   end subroutine send_data_by_name_1d
+
+   subroutine send_data_0d(field, data)
+      type (type_available_field), intent(inout) :: field
+      real(rk),target                            :: data
+      field%data_0d => data
+   end subroutine send_data_0d
+
+   subroutine send_data_1d(field, data)
+      type (type_available_field), intent(inout) :: field
+      real(rk),target                            :: data(:)
+      if (size(data)/=nz) call fatal_error('send_data_1d', &
+         'length of data array provided for variable '//trim(field%name)//' does not match extents of its spatial domain.')
+      field%data_1d => data
+   end subroutine send_data_1d
 
    subroutine output_manager_save(julianday,secondsofday)
       integer,intent(in) :: julianday,secondsofday

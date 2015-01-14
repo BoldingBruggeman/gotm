@@ -18,6 +18,8 @@
    use fabm_config
    use fabm_driver
 
+   use output_manager
+
    implicit none
 !
 !  default: all is private.
@@ -140,7 +142,7 @@
 !
 !  local variables
    integer :: i
-   logical :: file_exists
+   logical :: file_exists, in_output
    namelist /gotm_fabm_nml/ fabm_calc,                                               &
                             cnpar,w_adv_discr,ode_method,split_factor,               &
                             bioshade_feedback,bioalbedo_feedback,biodrag_feedback,   &
@@ -203,6 +205,20 @@
             allocate(model)
             call fabm_create_model_from_yaml_file(model)
       end select
+
+      ! Inform output manager about available diagnostics
+      do i=1,size(model%diagnostic_variables)
+         call output_manager_register_field(model%diagnostic_variables(i)%name, id_dim_z, model%diagnostic_variables(i)%units, &
+            model%diagnostic_variables(i)%long_name, minimum=model%diagnostic_variables(i)%minimum, maximum=model%diagnostic_variables(i)%maximum, &
+            fill_value=model%diagnostic_variables(i)%missing_value, used=in_output)
+         if (in_output) model%diagnostic_variables(i)%save = .true.
+      end do
+      do i=1,size(model%horizontal_diagnostic_variables)
+         call output_manager_register_field(model%horizontal_diagnostic_variables(i)%name, model%horizontal_diagnostic_variables(i)%units, &
+            model%horizontal_diagnostic_variables(i)%long_name, minimum=model%horizontal_diagnostic_variables(i)%minimum, maximum=model%horizontal_diagnostic_variables(i)%maximum, &
+            fill_value=model%horizontal_diagnostic_variables(i)%missing_value, used=in_output)
+         if (in_output) model%horizontal_diagnostic_variables(i)%save = .true.
+      end do
 
       ! Initialize model tree (creates metadata and assigns variable identifiers)
       call fabm_set_domain(model,nlev,dt)
@@ -337,25 +353,46 @@
 !
 !-----------------------------------------------------------------------
 !BOC
-   ! Allocate state variable array for pelagic and benthos combined and provide initial values.
-   ! In terms of memory use, it is a waste to allocate storage for benthic variables across the entire
-   ! column (the bottom layer should suffice). However, it is important that all values at a given point
-   ! in time are integrated simultaneously in multi-step algorithms. This currently can only be arranged
-   ! by storing benthic values together with the pelagic, in a fully depth-explicit array.
+   ! Allocate state variable array for pelagic, bototm and surface combined and provide initial values.
+   ! In terms of memory use, it is a waste to allocate storage for bottom-bound and surface-bound variables across
+   ! the entire column. However, it is important that all values at a given point in time are integrated simultaneously
+   ! in multi-step algorithms. Due to the design of the integration schemes, this currently can only be achieved by
+   ! storing bottom-bound and surface-bound values together with the pelagic, in a fully depth-explicit array.
    allocate(cc(0:nlev,1:size(model%state_variables)+size(model%bottom_state_variables)+size(model%surface_state_variables)),stat=rc)
    if (rc /= 0) stop 'allocate_memory(): Error allocating (cc)'
    cc = _ZERO_
    do i=1,size(model%state_variables)
       cc(:,i) = model%state_variables(i)%initial_value
       call fabm_link_bulk_state_data(model,i,cc(1:,i))
+      call output_manager_register_field(model%state_variables(i)%name, id_dim_z, model%state_variables(i)%units, &
+         model%state_variables(i)%long_name, minimum=model%state_variables(i)%minimum, maximum=model%state_variables(i)%maximum, &
+         fill_value=model%state_variables(i)%missing_value, data = cc(1:,i))
    end do
    do i=1,size(model%bottom_state_variables)
       cc(1,size(model%state_variables)+i) = model%bottom_state_variables(i)%initial_value
       call fabm_link_bottom_state_data(model,i,cc(1,size(model%state_variables)+i))
+      call output_manager_register_field(model%bottom_state_variables(i)%name, model%bottom_state_variables(i)%units, &
+         model%bottom_state_variables(i)%long_name, minimum=model%bottom_state_variables(i)%minimum, &
+         maximum=model%bottom_state_variables(i)%maximum, fill_value=model%state_variables(i)%missing_value, &
+         data=cc(1,size(model%state_variables)+i))
    end do
    do i=1,size(model%surface_state_variables)
       cc(1,size(model%state_variables)+size(model%bottom_state_variables)+i) = model%surface_state_variables(i)%initial_value
       call fabm_link_surface_state_data(model,i,cc(nlev,size(model%state_variables)+size(model%bottom_state_variables)+i))
+      call output_manager_register_field(model%surface_state_variables(i)%name, model%surface_state_variables(i)%units, &
+         model%surface_state_variables(i)%long_name, minimum=model%surface_state_variables(i)%minimum, &
+         maximum=model%surface_state_variables(i)%maximum, fill_value=model%surface_state_variables(i)%missing_value, &
+         data=cc(1,size(model%state_variables)+size(model%bottom_state_variables)+i))
+   end do
+
+   ! Send pointers to diagnostic data to output manager.
+   do i=1,size(model%diagnostic_variables)
+      if (model%diagnostic_variables(i)%save) &
+         call output_manager_send_data(model%diagnostic_variables(i)%name, fabm_get_bulk_diagnostic_data(model,i))
+   end do
+   do i=1,size(model%horizontal_diagnostic_variables)
+      if (model%horizontal_diagnostic_variables(i)%save) &
+         call output_manager_send_data(model%horizontal_diagnostic_variables(i)%name, fabm_get_horizontal_diagnostic_data(model,i))
    end do
 
    ! Allocate arrays that contain observation indices of pelagic and benthic state variables.
