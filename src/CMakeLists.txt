@@ -180,6 +180,7 @@ add_library(output_manager OBJECT
             output/output_manager.F90
            )
 add_dependencies(output_manager util ${FABM_LIBRARIES})
+add_dependencies(gotm_fabm output_manager)
 set_property(TARGET output_manager APPEND PROPERTY INCLUDE_DIRECTORIES "${FABM_INCLUDE_DIRS}")
 
 add_library(input OBJECT
