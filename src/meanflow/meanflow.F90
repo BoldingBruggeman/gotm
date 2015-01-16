@@ -245,6 +245,7 @@
    allocate(h(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (h)'
    h = _ZERO_
+   call output_manager_register_field('h', id_dim_z, 'm', 'layer thickness', standard_name='cell_thickness', data=h(1:nlev))
 
    allocate(ho(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (ho)'
