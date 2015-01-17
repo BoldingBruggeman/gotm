@@ -57,10 +57,10 @@ module field_manager
    end interface
 
    interface field_manager_send_data
-      procedure send_data_0d
-      procedure send_data_1d
-      procedure send_data_by_name_0d
-      procedure send_data_by_name_1d
+      module procedure send_data_0d
+      module procedure send_data_1d
+      module procedure send_data_by_name_0d
+      module procedure send_data_by_name_1d
    end interface
 
 contains
