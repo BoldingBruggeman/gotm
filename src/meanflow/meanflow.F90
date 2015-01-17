@@ -12,7 +12,7 @@
 !  calculation and also makes the proper initialisations.
 !
 ! !USES:
-   use output_manager
+   use field_manager
 
    IMPLICIT NONE
 !  Default all is private.
@@ -245,7 +245,7 @@
    allocate(h(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (h)'
    h = _ZERO_
-   call output_manager_register_field('h', id_dim_z, 'm', 'layer thickness', standard_name='cell_thickness', data=h(1:nlev))
+   call field_manager_register('h', id_dim_z, 'm', 'layer thickness', standard_name='cell_thickness', data=h(1:nlev))
 
    allocate(ho(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (ho)'
@@ -282,12 +282,12 @@
    allocate(T(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (T)'
    T = _ZERO_
-   call output_manager_register_field('temp', id_dim_z, 'Celsius', 'temperature', standard_name='sea_water_temperature', data=T(1:nlev))
+   call field_manager_register('temp', id_dim_z, 'Celsius', 'temperature', standard_name='sea_water_temperature', data=T(1:nlev))
 
    allocate(S(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (S)'
    S = _ZERO_
-   call output_manager_register_field('salt', id_dim_z, 'g/kg', 'salinity', standard_name='sea_water_practical_salinity', data=S(1:nlev))
+   call field_manager_register('salt', id_dim_z, 'g/kg', 'salinity', standard_name='sea_water_practical_salinity', data=S(1:nlev))
 
    allocate(rho(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (rho)'

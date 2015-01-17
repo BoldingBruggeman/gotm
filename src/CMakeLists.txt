@@ -78,6 +78,7 @@ add_library(util
             util/time.F90
             util/tridiagonal.F90
             util/util.F90
+            util/field_manager.F90
            )
 set_property(TARGET util PROPERTY Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules)
 
@@ -178,9 +179,10 @@ if(NOT GOTM_BUILD_LIBRARIES_ONLY)
 
 add_library(output_manager OBJECT
             output/output_manager.F90
+            output/output_manager_core.F90
+            output/netcdf_output.F90
            )
 add_dependencies(output_manager util ${FABM_LIBRARIES})
-add_dependencies(gotm_fabm output_manager)
 set_property(TARGET output_manager APPEND PROPERTY INCLUDE_DIRECTORIES "${FABM_INCLUDE_DIRS}")
 
 add_library(input OBJECT
@@ -201,7 +203,7 @@ add_library(airsea OBJECT
             airsea/albedo_water.F90
            )
 set_property(TARGET airsea APPEND PROPERTY COMPILE_DEFINITIONS GUSTINESS)
-add_dependencies(airsea util input output_manager)
+add_dependencies(airsea util input)
 
 add_library(observations OBJECT
             observations/analytical_profile.F90
@@ -227,7 +229,7 @@ add_library(meanflow OBJECT
             meanflow/updategrid.F90
             meanflow/vequation.F90
            )
-add_dependencies(meanflow util observations output_manager)
+add_dependencies(meanflow util observations airsea)
 
 add_library(output OBJECT
             output/asciiout.F90
@@ -354,15 +356,8 @@ add_executable(test_airsea EXCLUDE_FROM_ALL
                airsea/test_airsea.F90
                $<TARGET_OBJECTS:airsea>
                $<TARGET_OBJECTS:input>
-               $<TARGET_OBJECTS:output_manager>
               )
-target_link_libraries(test_airsea util fabm)
-if(GOTM_USE_NetCDF)
-  target_link_libraries(test_airsea "${NetCDF_LIBRARIES}")
-  if (NetCDF_STATIC_MSVC_BUILD)
-    set_property(TARGET test_airsea PROPERTY LINK_FLAGS_DEBUG "/NODEFAULTLIB:\"libcmt\"")
-  endif()
-endif(GOTM_USE_NetCDF)
+target_link_libraries(test_airsea util)
 
 add_executable(test_eqstate EXCLUDE_FROM_ALL
                util/test_eqstate.F90

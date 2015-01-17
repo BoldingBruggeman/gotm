@@ -25,7 +25,7 @@
    use airsea_variables
    use time,         only: julian_day, yearday, time_diff
    use input,        only: register_input_0d,read_obs
-   use output_manager
+   use field_manager
 !
    IMPLICIT NONE
 
@@ -339,7 +339,7 @@
    dlon = lon
    dlat = lat
 
-   call output_manager_register_field('sst', 'Celsius', 'sea surface temperature', standard_name='sea_surface_temperature', data=sst)
+   call field_manager_register('sst', 'Celsius', 'sea surface temperature', standard_name='sea_surface_temperature', data=sst)
 
 !  initialize namelist variables to reasonable defaults.
    calc_fluxes=.false.

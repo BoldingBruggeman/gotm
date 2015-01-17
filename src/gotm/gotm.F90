@@ -33,6 +33,7 @@
 !  \end{itemize}
 !
 ! !USES:
+   use field_manager
    use output_manager
    use meanflow
    use input
@@ -207,7 +208,8 @@
    LEVEL2 trim(name)
 
    LEVEL2 'initializing modules....'
-   call output_manager_init(nlev)
+   call field_manager_init(nlev)
+   call output_manager_init()
    call init_input(nlev)
    call init_time(MinN,MaxN)
    call init_eqstate(namlst)
@@ -614,6 +616,8 @@
    call close_input()
 
    call output_manager_clean()
+
+   call field_manager_clean()
 
    return
    end subroutine clean_up
