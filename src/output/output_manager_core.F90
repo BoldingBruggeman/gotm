@@ -53,14 +53,14 @@ module output_manager_core
 
 contains
 
-   subroutine initialize(file,julianday,secondsofday)
-      class (type_file),intent(inout) :: file
+   subroutine initialize(self,julianday,secondsofday)
+      class (type_file),intent(inout) :: self
       integer,          intent(in)    :: julianday,secondsofday
       stop 'output_manager_core:initialize not implemented'
    end subroutine
 
-   subroutine save(file,julianday,secondsofday)
-      class (type_file),intent(inout) :: file
+   subroutine save(self,julianday,secondsofday)
+      class (type_file),intent(inout) :: self
       integer,          intent(in)    :: julianday,secondsofday
       stop 'output_manager_core:save not implemented'
    end subroutine
