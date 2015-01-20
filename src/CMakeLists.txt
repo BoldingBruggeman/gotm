@@ -241,7 +241,7 @@ add_dependencies(output util meanflow turbulence observations airsea)
 add_library(gotm OBJECT
             gotm/gotm.F90
            )
-add_dependencies(gotm input output util meanflow turbulence observations airsea)
+add_dependencies(gotm input output_manager output util meanflow turbulence observations airsea)
 
 #option(GOTM_USE_ICE "Include ICE support" OFF)
 #if(GOTM_USE_ICE)
