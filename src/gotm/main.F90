@@ -27,7 +27,7 @@
 !EOP
 !
 ! !LOCAL VARIABLES:
-   
+
    character(LEN=8)          :: systemdate
    character(LEN=10)         :: systemtime
    real                      :: t1=-1,t2=-1
@@ -36,11 +36,11 @@
 !BOC
 
 !  monitor CPU time and report system time and date
-#ifdef FORTRAN95 
+#ifdef FORTRAN95
    call CPU_Time(t1)
 
    call Date_And_Time(DATE=systemdate,TIME=systemtime)
-   
+
    STDERR LINE
    STDERR 'GOTM ver. ',    RELEASE,                           &
           ' started on ', systemdate(1:4), '/',               &
@@ -48,11 +48,11 @@
                           systemdate(7:8),                    &
           ' at ',         systemtime(1:2), ':',               &
                           systemtime(3:4), ':',               &
-                          systemtime(5:6) 
+                          systemtime(5:6)
    STDERR LINE
 #else
    STDERR LINE
-   STDERR 'GOTM ver. ',    RELEASE                           
+   STDERR 'GOTM ver. ',    RELEASE
    STDERR LINE
 #endif
 
@@ -64,7 +64,7 @@
 !  report system date and time at end of run
 #ifdef FORTRAN95
    call Date_And_Time(DATE=systemdate,TIME=systemtime)
-   
+
    STDERR LINE
    STDERR 'GOTM ver. ',     RELEASE,                          &
           ' finished on ', systemdate(1:4), '/',              &
@@ -72,11 +72,11 @@
                            systemdate(7:8),                   &
           ' at ',          systemtime(1:2), ':',              &
                            systemtime(3:4), ':',              &
-                           systemtime(5:6) 
+                           systemtime(5:6)
    STDERR LINE
 #else
    STDERR LINE
-   STDERR 'GOTM ver. ',    RELEASE                           
+   STDERR 'GOTM ver. ',    RELEASE
    STDERR LINE
 #endif
 
@@ -95,8 +95,10 @@
 
 !-----------------------------------------------------------------------
    subroutine compilation_options
+#ifndef GFORTRAN
+   use, intrinsic ::  iso_Fortran_env
+#endif
    IMPLICIT NONE
-!
    STDERR LINE
 !   STDERR 'GOTM:     www.gotm.net'
 !   STDERR 'version:  ',RELEASE
@@ -105,6 +107,10 @@
    STDERR 'Compilation options: '
    STDERR LINE
 !
+#ifndef GFORTRAN
+!   STDERR compiler_version()
+!   STDERR compiler_options()
+#else
 #ifdef FORTRAN90
    LEVEL1 'Fortran 90 compilation'
 #endif
@@ -113,6 +119,7 @@
 #endif
 #ifdef FORTRAN2003
    LEVEL1 'Fortran 2003 compilation'
+#endif
 #endif
 #ifdef _FABM_
    LEVEL1 '_FABM_'

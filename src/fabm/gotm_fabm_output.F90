@@ -1,7 +1,7 @@
 #ifdef _FABM_
 
 #include "cppdefs.h"
-#include "fabm_driver.h"
+
 !-----------------------------------------------------------------------
 !BOP
 !
@@ -15,10 +15,11 @@
 !  state and diagnostic variables.
 !
 ! !USES:
-   use gotm_fabm
+   use fabm_types,only:rk,get_safe_name,output_time_step_integrated,output_time_step_averaged,output_none
+   use fabm,only:type_external_variable,fabm_get_conserved_quantities,fabm_get_horizontal_conserved_quantities
+
    use gotm_fabm_input
-   use fabm
-   use fabm_types
+   use gotm_fabm
 
    implicit none
 
@@ -29,11 +30,7 @@
    public init_gotm_fabm_output, do_gotm_fabm_output, clean_gotm_fabm_output
 
    REALTYPE,allocatable :: total0(:),total(:)
-#ifdef _FABM_USE_1D_LOOP_
    REALTYPE,allocatable :: local(:,:)
-#else
-   REALTYPE,allocatable :: local(:)
-#endif
 !EOP
 !-----------------------------------------------------------------------
 
@@ -75,16 +72,12 @@ contains
 !-----------------------------------------------------------------------
 !BOC
    ! Allocate memory for conserved quantity totals
-   allocate(total0(1:size(model%info%conserved_quantities)),stat=rc)
-   if (rc /= 0) stop 'allocate_memory(): Error allocating (total0)'
-   allocate(total(1:size(model%info%conserved_quantities)),stat=rc)
-   if (rc /= 0) stop 'allocate_memory(): Error allocating (total)'
-#ifdef _FABM_USE_1D_LOOP_
-   allocate(local(1:nlev,1:size(model%info%conserved_quantities)),stat=rc)
-#else
-   allocate(local(1:size(model%info%conserved_quantities)),stat=rc)
-#endif
-   if (rc /= 0) stop 'allocate_memory(): Error allocating (local)'
+   allocate(total0(1:size(model%conserved_quantities)),stat=rc)
+   if (rc /= 0) stop 'init_gotm_fabm_output: Error allocating (total0)'
+   allocate(total(1:size(model%conserved_quantities)),stat=rc)
+   if (rc /= 0) stop 'init_gotm_fabm_output: Error allocating (total)'
+   allocate(local(1:nlev,1:size(model%conserved_quantities)),stat=rc)
+   if (rc /= 0) stop 'init_gotm_fabm_output: Error allocating (local)'
 
    select case (out_fmt)
       case (NETCDF)
@@ -102,37 +95,38 @@ contains
          dim3d(3) = time_dim
 
          ! Add a NetCDF variable for each pelagic (longitude,latitude,depth,time) biogeochemical state variable.
-         do n=1,size(model%info%state_variables)
-            call add_variable(model%info%state_variables(n),dim4d)
+         do n=1,size(model%state_variables)
+            call add_variable(model%state_variables(n),dim4d)
          end do
 
          ! Add a NetCDF variable for each bottom (longitude,latitude,time) biogeochemical state variable.
-         do n=1,size(model%info%bottom_state_variables)
-            call add_variable(model%info%bottom_state_variables(n),dim3d)
+         do n=1,size(model%bottom_state_variables)
+            call add_variable(model%bottom_state_variables(n),dim3d)
          end do
 
          ! Add a NetCDF variable for each surface (longitude,latitude,time) biogeochemical state variable.
-         do n=1,size(model%info%surface_state_variables)
-            call add_variable(model%info%surface_state_variables(n),dim3d)
+         do n=1,size(model%surface_state_variables)
+            call add_variable(model%surface_state_variables(n),dim3d)
          end do
 
          ! Add a NetCDF variable for each 4D (longitude,latitude,depth,time) biogeochemical diagnostic variable.
-         do n=1,size(model%info%diagnostic_variables)
-            call add_variable(model%info%diagnostic_variables(n),dim4d)
+         do n=1,size(model%diagnostic_variables)
+            call add_variable(model%diagnostic_variables(n),dim4d)
          end do
 
          ! Add a NetCDF variable for each 3D (longitude,latitude,time) biogeochemical diagnostic variable.
-         do n=1,size(model%info%horizontal_diagnostic_variables)
-            call add_variable(model%info%horizontal_diagnostic_variables(n),dim3d)
+         do n=1,size(model%horizontal_diagnostic_variables)
+            call add_variable(model%horizontal_diagnostic_variables(n),dim3d)
          end do
 
          ! Add a variable for each conserved quantity
-         do n=1,size(model%info%conserved_quantities)
-            iret = new_nc_variable(ncid,'int_change_in_'//trim(model%info%conserved_quantities(n)%name),NF90_REAL, &
-                                   dim3d,model%info%conserved_quantities(n)%externalid)
-            iret = set_attributes(ncid,model%info%conserved_quantities(n)%externalid,      &
-                                  units=trim(model%info%conserved_quantities(n)%units)//'*m',    &
-                                  long_name='integrated change in '//trim(model%info%conserved_quantities(n)%long_name))
+         do n=1,size(model%conserved_quantities)
+            iret = new_nc_variable(ncid,'int_change_in_'//trim(model%conserved_quantities(n)%name),NF90_REAL, &
+                                   dim3d,model%conserved_quantities(n)%externalid)
+            iret = set_attributes(ncid,model%conserved_quantities(n)%externalid,      &
+                                  units=trim(model%conserved_quantities(n)%units)//'*m',    &
+                                  long_name='integrated change in '//trim(model%conserved_quantities(n)%long_name), &
+                                  missing_value=-1d20,FillValue=-1d20)
          end do
 
          ! If requested, add a NetCDF variable for each variable read from an external source [input file].
@@ -141,16 +135,16 @@ contains
             cur_obs_variable => first_input_variable
             do while (associated(cur_obs_variable))
                if (allocated(cur_obs_variable%data_1d)) then
-                  iret = new_nc_variable(ncid,trim(cur_obs_variable%name)//'_obs',NF90_REAL,dim4d,cur_obs_variable%ncid)
+                  iret = new_nc_variable(ncid,trim(get_safe_name(cur_obs_variable%name))//'_obs',NF90_REAL,dim4d,cur_obs_variable%ncid)
                else
-                  iret = new_nc_variable(ncid,trim(cur_obs_variable%name)//'_obs',NF90_REAL,dim3d,cur_obs_variable%ncid)
+                  iret = new_nc_variable(ncid,trim(get_safe_name(cur_obs_variable%name))//'_obs',NF90_REAL,dim3d,cur_obs_variable%ncid)
                end if
                iret = nf90_put_att(ncid,cur_obs_variable%ncid,'source_file',trim(cur_obs_variable%path))
                call check_err(iret)
                iret = nf90_put_att(ncid,cur_obs_variable%ncid,'source_column',cur_obs_variable%index)
                call check_err(iret)
                cur_obs_variable => cur_obs_variable%next
-            end do               
+            end do
          end if
 
          ! Take NetCDF library out of define mode (ready for storing data).
@@ -159,6 +153,7 @@ contains
    end select
    call calculate_conserved_quantities(nlev,total0)
 
+#ifdef NETCDF_FMT
    contains
 
    subroutine add_variable(variable,dims)
@@ -172,6 +167,7 @@ contains
                             long_name=trim(variable%long_name), &
                             FillValue=variable%missing_value,missing_value=variable%missing_value)
    end subroutine
+#endif
 
    end subroutine init_gotm_fabm_output
 !EOC
@@ -219,7 +215,7 @@ contains
    select case (out_fmt)
       case (NETCDF)
 #ifdef NETCDF_FMT
-         
+
          ! ---------------------------
          ! Depth-dependent variables
          ! ---------------------------
@@ -230,32 +226,32 @@ contains
          start(4) = set_no; edges(4) = 1
 
          ! Store pelagic biogeochemical state variables.
-         do n=1,size(model%info%state_variables)
-            if (model%info%state_variables(n)%output==output_none) continue
-            iret = nf90_put_var(ncid,model%info%state_variables(n)%externalid,cc(1:nlev,n),start,edges)
+         do n=1,size(model%state_variables)
+            if (model%state_variables(n)%output==output_none) cycle
+            iret = nf90_put_var(ncid,model%state_variables(n)%externalid,cc(1:nlev,n),start,edges)
             call check_err(iret)
          end do
 
          ! Process and store diagnostic variables defined on the full domain.
-         do n=1,size(model%info%diagnostic_variables)
-            if (model%info%diagnostic_variables(n)%output==output_none) continue
+         do n=1,size(model%diagnostic_variables)
+            if (model%diagnostic_variables(n)%output==output_none) cycle
 
             ! Time-average diagnostic variable if needed.
-            if (model%info%diagnostic_variables(n)%time_treatment==time_treatment_averaged.and..not.initial) &
-               cc_diag(1:nlev,n) = cc_diag(1:nlev,n)/(nsave*dt)
+            if (model%diagnostic_variables(n)%output==output_time_step_averaged.and..not.initial) &
+               cc_diag(:,n) = cc_diag(:,n)/(nsave*dt)
 
             ! If we want time-step integrated values and have the initial field, multiply by output time step.
-            if (model%info%diagnostic_variables(n)%time_treatment==time_treatment_step_integrated.and.initial) &
-               cc_diag(1:nlev,n) = cc_diag(1:nlev,n)*(nsave*dt)
+            if (model%diagnostic_variables(n)%output==output_time_step_integrated.and.initial) &
+               cc_diag(:,n) = cc_diag(:,n)*(nsave*dt)
 
             ! Store diagnostic variable values.
-            iret = nf90_put_var(ncid,model%info%diagnostic_variables(n)%externalid,cc_diag(1:nlev,n),start,edges)
+            iret = nf90_put_var(ncid,model%diagnostic_variables(n)%externalid,cc_diag(:,n),start,edges)
             call check_err(iret)
 
             ! Reset diagnostic variables to zero if they will be time-integrated (or time-averaged).
-            if (model%info%diagnostic_variables(n)%time_treatment==time_treatment_averaged .or. &
-                model%info%diagnostic_variables(n)%time_treatment==time_treatment_step_integrated) &
-               cc_diag(1:nlev,n) = _ZERO_
+            if (model%diagnostic_variables(n)%output==output_time_step_averaged .or. &
+                model%diagnostic_variables(n)%output==output_time_step_integrated) &
+               cc_diag(:,n) = _ZERO_
          end do
 
          ! Enumerate profile (depth-dependent) inputs and save corresponding data.
@@ -266,37 +262,44 @@ contains
                call check_err(iret)
             end if
             cur_obs_variable => cur_obs_variable%next
-         end do               
+         end do
 
          ! ---------------------------
          ! Depth-independent variables
          ! ---------------------------
 
-         ! Store benthic biogeochemical state variables.
-         do n=1,size(model%info%bottom_state_variables)
-            if (model%info%bottom_state_variables(n)%output==output_none) continue
-            iret = store_data(ncid,model%info%bottom_state_variables(n)%externalid,XYT_SHAPE,1, &
-                            & scalar=cc(1,size(model%info%state_variables)+n))
+         ! Store bottom-bound biogeochemical state variables.
+         do n=1,size(model%bottom_state_variables)
+            if (model%bottom_state_variables(n)%output==output_none) cycle
+            iret = store_data(ncid,model%bottom_state_variables(n)%externalid,XYT_SHAPE,1, &
+                            & scalar=cc(1,size(model%state_variables)+n))
+         end do
+
+         ! Store surface-bound biogeochemical state variables.
+         do n=1,size(model%surface_state_variables)
+            if (model%surface_state_variables(n)%output==output_none) cycle
+            iret = store_data(ncid,model%surface_state_variables(n)%externalid,XYT_SHAPE,1, &
+                            & scalar=cc(nlev,size(model%state_variables)+size(model%bottom_state_variables)+n))
          end do
 
          ! Process and store diagnostic variables defined on horizontal slices of the domain.
-         do n=1,size(model%info%horizontal_diagnostic_variables)
-            if (model%info%horizontal_diagnostic_variables(n)%output==output_none) continue
+         do n=1,size(model%horizontal_diagnostic_variables)
+            if (model%horizontal_diagnostic_variables(n)%output==output_none) cycle
 
             ! Time-average diagnostic variable if needed.
-            if (model%info%horizontal_diagnostic_variables(n)%time_treatment==time_treatment_averaged.and..not.initial) &
+            if (model%horizontal_diagnostic_variables(n)%output==output_time_step_averaged.and..not.initial) &
                cc_diag_hz(n) = cc_diag_hz(n)/(nsave*dt)
 
             ! If we want time-step integrated values and have the initial field, multiply by output time step.
-            if (model%info%horizontal_diagnostic_variables(n)%time_treatment==time_treatment_step_integrated.and.initial) &
+            if (model%horizontal_diagnostic_variables(n)%output==output_time_step_integrated.and.initial) &
                cc_diag_hz(n) = cc_diag_hz(n)*(nsave*dt)
 
             ! Store diagnostic variable values.
-            iret = store_data(ncid,model%info%horizontal_diagnostic_variables(n)%externalid,XYT_SHAPE,nlev,scalar=cc_diag_hz(n))
+            iret = store_data(ncid,model%horizontal_diagnostic_variables(n)%externalid,XYT_SHAPE,nlev,scalar=cc_diag_hz(n))
 
             ! Reset diagnostic variables to zero if they will be time-integrated (or time-averaged).
-            if (model%info%horizontal_diagnostic_variables(n)%time_treatment==time_treatment_averaged .or. &
-                model%info%horizontal_diagnostic_variables(n)%time_treatment==time_treatment_step_integrated) &
+            if (model%horizontal_diagnostic_variables(n)%output==output_time_step_averaged .or. &
+                model%horizontal_diagnostic_variables(n)%output==output_time_step_integrated) &
                cc_diag_hz(n) = _ZERO_
          end do
 
@@ -315,8 +318,8 @@ contains
          total = total - total0
 
          ! Store conserved quantity integrals.
-         do n=1,size(model%info%conserved_quantities)
-            iret = store_data(ncid,model%info%conserved_quantities(n)%externalid,XYT_SHAPE,1,scalar=total(n))
+         do n=1,size(model%conserved_quantities)
+            iret = store_data(ncid,model%conserved_quantities(n)%externalid,XYT_SHAPE,1,scalar=total(n))
          end do
 #endif
    end select
@@ -333,22 +336,12 @@ contains
       ! Add conserved quantities at boundaries (in m-2)
       call fabm_get_horizontal_conserved_quantities(model,1,total)
 
-#ifdef _FABM_USE_1D_LOOP_
       call fabm_get_conserved_quantities(model,1,nlev,local)
-      do n=1,size(model%info%conserved_quantities)
+      do n=1,size(model%conserved_quantities)
          ! Note: our pointer to h has a lower bound of 1, while the original pointed-to data starts at 0.
          ! We therefore need to increment the index by 1 in order to address original elements >=1!
          total(n) = total(n) + sum(h(2:nlev+1)*local(1:nlev,n))
       end do
-#else
-      total = _ZERO_
-      do n=1,nlev
-         ! Note: our pointer to h has a lower bound of 1, while the original pointed-to data starts at 0.
-         ! We therefore need to increment the index by 1 in order to address original elements >=1!
-         call fabm_get_conserved_quantities(model,n,local)
-         total = total + h(n+1)*local
-      end do
-#endif
    end subroutine
 
    subroutine clean_gotm_fabm_output()

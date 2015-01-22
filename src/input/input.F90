@@ -83,7 +83,7 @@
 !
 !  PRIVATE PARAMETERS
    integer,parameter :: first_unit_no = 555
-   
+
    integer :: nlev
 
    integer, parameter :: END_OF_FILE=-1
@@ -117,7 +117,7 @@
       nlev = n
    else
       nlev = -1
-   end if   
+   end if
    next_unit_no = first_unit_no
    nullify(first_profile_file)
    nullify(first_timeseries_file)
@@ -133,12 +133,12 @@
 ! !IROUTINE: Register a 1d input variable.
 !
 ! !INTERFACE:
-   subroutine register_input_1d(path,icolumn,data,scale_factor)
+   subroutine register_input_1d(path,icolumn,data,name,scale_factor)
 !
 ! !DESCRIPTION:
 !
 ! !INPUT PARAMETERS:
-   character(len=*), intent(in) :: path
+   character(len=*), intent(in) :: path,name
    integer,          intent(in) :: icolumn
    REALTYPE,target              :: data(:)
    REALTYPE,optional,intent(in) :: scale_factor
@@ -156,6 +156,11 @@
 !BOC
    if (nlev==-1) then
       FATAL 'input module has been initialized without depth information; depth-explicit inputs can therefore not be registered.'
+      stop 'input::register_input_1d'
+   end if
+
+   if (path=='') then
+      FATAL 'Empty file path specified to read variable '//trim(name)//' from.'
       stop 'input::register_input_1d'
    end if
 
@@ -194,7 +199,7 @@
       allocate(file%first_variable)
       variable => file%first_variable
    end if
-   
+
    variable%index = icolumn
    variable%data => data
    variable%data = _ZERO_
@@ -209,12 +214,12 @@
 ! !IROUTINE: Register a 0d input variable.
 !
 ! !INTERFACE:
-   subroutine register_input_0d(path,icolumn,data,scale_factor)
+   subroutine register_input_0d(path,icolumn,data,name,scale_factor)
 !
 ! !DESCRIPTION:
 !
 ! !INPUT PARAMETERS:
-   character(len=*), intent(in) :: path
+   character(len=*), intent(in) :: path,name
    integer,          intent(in) :: icolumn
    REALTYPE,target              :: data
    REALTYPE,optional,intent(in) :: scale_factor
@@ -230,6 +235,11 @@
 !
 !-----------------------------------------------------------------------
 !BOC
+   if (path=='') then
+      FATAL 'Empty file path specified to read variable '//trim(name)//' from.'
+      stop 'input::register_input_0d'
+   end if
+
 !  Find a file object for the specified file path; create one if it does exist yet.
    if (.not.associated(first_timeseries_file)) then
       allocate(first_timeseries_file)
@@ -265,7 +275,7 @@
       allocate(file%first_variable)
       variable => file%first_variable
    end if
-   
+
    variable%index = icolumn
    variable%data => data
    variable%data = _ZERO_
@@ -359,7 +369,7 @@
 !  Opening was successful - store the file unit, and increment the next unit with 1.
    info%unit = next_unit_no
    next_unit_no = next_unit_no + 1
-   
+
 !  Determine the maximum number of columns that we need to read.
    nvar = 0
    curvar => info%first_variable
@@ -436,7 +446,7 @@
          call read_profiles(info%unit,nlev,ubound(info%prof2,2),yy,mm,dd,hh,min,ss,z,info%prof2,info%lines,rc)
          if(rc/=0) then
             if(info%nprofiles==1) then
-               LEVEL3 'Only one set of profiles is present.'
+               LEVEL3 'Only one set of profiles is present in '//trim(info%path)//'.'
                info%one_profile = .true.
                curvar => info%first_variable
                do while (associated(curvar))
@@ -444,8 +454,8 @@
                   curvar => curvar%next
                end do
             else
-               FATAL 'Error reading profiles around line #',info%lines
-               stop 'gotm_fabm_input:get_observed_profiles'
+               FATAL 'Error reading profiles from '//trim(info%path)//' around line #',info%lines
+               stop 'input:get_observed_profiles'
             end if
             exit
          else
@@ -514,17 +524,17 @@
       nvar = max(nvar,curvar%index)
       curvar => curvar%next
    end do
-   
+
    allocate(info%obs1(nvar),stat=rc)
-   if (rc /= 0) stop 'gotm_fabm_input::initialize_timeseries_file: Error allocating memory (obs1)'
+   if (rc /= 0) stop 'input::initialize_timeseries_file: Error allocating memory (obs1)'
    info%obs1 = _ZERO_
 
    allocate(info%obs2(nvar),stat=rc)
-   if (rc /= 0) stop 'gotm_fabm_input::initialize_timeseries_file: Error allocating memory (obs2)'
+   if (rc /= 0) stop 'input::initialize_timeseries_file: Error allocating memory (obs2)'
    info%obs2 = _ZERO_
 
    allocate(info%alpha(nvar),stat=rc)
-   if (rc /= 0) stop 'gotm_fabm_input::initialize_timeseries_file: Error allocating memory (alpha)'
+   if (rc /= 0) stop 'input::initialize_timeseries_file: Error allocating memory (alpha)'
    info%alpha = _ZERO_
 
    return

@@ -152,7 +152,7 @@
    namelist /model_setup/ title,nlev,dt,cnpar,buoy_method
    namelist /station/     name,latitude,longitude,depth
    namelist /time/        timefmt,MaxN,start,stop
-   namelist /output/      out_fmt,out_dir,out_fn,nsave,sync_out, &
+   namelist /output/      out_fmt,out_dir,out_fn,nfirst,nsave,sync_out, &
                           diagnostics,mld_method,diff_k,Ri_crit,rad_corr
    integer          ::    rc
 !
@@ -172,6 +172,7 @@
    out_fmt     = ASCII
    out_dir     = '.'
    out_fn      = 'gotm'
+   nfirst      = 0
    nsave       = 1
    sync_out    = 1
    diagnostics = .false.
@@ -283,9 +284,6 @@
 !  Initialize the GOTM-FABM coupler from its configuration file.
    call init_gotm_fabm(nlev,namlst,'gotm_fabm.nml',dt)
 
-!  Initialize FABM input (data files with observations)
-   call init_gotm_fabm_input(namlst,'fabm_input.nml',nlev,h(1:nlev))
-
 !  Link relevant GOTM data to FABM.
 !  This sets pointers, rather than copying data, and therefore needs to be done only once.
    if (fabm_calc) then
@@ -301,6 +299,9 @@
                           nuh,h,w,bioshade(1:nlev),I_0,cloud,taub,wind,precip,evap,z(1:nlev), &
                           A,g1,g2,yearday,secondsofday,SRelaxTau(1:nlev),sProf(1:nlev), &
                           bio_albedo,bio_drag_scale)
+
+!  Initialize FABM input (data files with observations)
+   call init_gotm_fabm_input(namlst,'fabm_input.nml',nlev,h(1:nlev))
 #endif
 
    call do_input(julianday,secondsofday,nlev,z)

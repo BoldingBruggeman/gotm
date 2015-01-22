@@ -38,12 +38,11 @@
    REALTYPE :: albedo, albedo_water
    REALTYPE :: swr, short_wave_radiation
 
-!   REALTYPE :: hour,lat=0., lon=0.
-!   REALTYPE :: albedo, albedo_water
    integer  :: i
 !EOP
 !-----------------------------------------------------------------------
 !BOC
+   ta = 15.
    tw_k = tw+kelvin
    ta_k = ta+kelvin
    STDERR 'basic variables:'
@@ -94,7 +93,6 @@
    STDERR 'ty=   ',ty
    STDERR 'qe=   ',qe
    STDERR 'qh=   ',qh
-
    call airsea_fluxes(2,rain_impact,calc_evaporation, &
                    tw,ta,u10-ssu,v10-ssv,precip,evap,tx,ty,qe,qh)
    STDERR 'Fairall:'
@@ -105,8 +103,7 @@
    STDERR 'qh=   ',qh
    STDERR
 
-
-   STDERR 'short wave radiationand albedo:'
+   STDERR 'short wave radiation and albedo:'
    STDERR 'yday=   ',yday
    STDERR 'dlon=   ',dlon
    STDERR 'dlat=   ',dlat
@@ -114,7 +111,7 @@
       hh=i*_ONE_
       swr = short_wave_radiation(yday,hh,dlon,dlat,cloud)
       albedo = albedo_water(1,yday,hh,dlon,dlat)
-      STDERR hh,',',swr,',',albedo
+      STDERR hh,swr,albedo
    end do
 
    end program test_airsea

@@ -15,8 +15,9 @@
 !  prescribed. Alternatively, they may be calculated by means
 !  of bulk formulae from observed or modelled meteorological
 !  parameters and the solar radiation may be calculated
-!  from longitude, latitude,
-!  time and cloudiness. For the prescibed fluxes and solar radiation,
+!  from longitude, latitude, time and cloudiness. 
+!  Albedo correction is applied according to a namelist variable.
+!  For the prescibed fluxes and solar radiation,
 !  values may be constant or read in from files. All necessary
 !  setting have to be made in the namelist file {\tt airsea.nml}.
 !
@@ -104,10 +105,12 @@
 !  Original author(s): Karsten Bolding, Hans Burchard
 !
 ! !LOCAL VARIABLES:
-#ifndef INTERPOLATE_METEO   
+#ifndef INTERPOLATE_METEO
    logical                   :: init_saved_vars
 #endif
    integer, public           :: swr_method
+   integer, public           :: albedo_method
+   REALTYPE, public          :: const_albedo
    integer, public           :: fluxes_method
    integer, public           :: back_radiation_method
    integer                   :: heat_method
@@ -197,6 +200,8 @@
 !                          & 2: read short wave radiation from file                                 \\
 !                          & 3: Solar radiation is calculated from time, longitude, latitude,       \\
 !                          & and cloud cover.                                                       \\
+! {\tt albedo_method}    & 0=const, 1=Payne, 2=Cogley \\
+! {\tt const_albedo}     & used if albedo_method=0 - must be <= 1.0    \\
 ! {\tt const\_swr}       & constant value for short wave radiation in W\,m$^{-2}$                 \\
 !                          & (always positive)                                                      \\
 ! {\tt swr\_file}        & file with short wave radiation in W\,m$^{-2}$                          \\
@@ -246,7 +251,7 @@
                      heat_method, &
                      rain_impact, &
                      calc_evaporation, &
-                     swr_method,const_swr,swr_file,swr_factor, &
+                     swr_method,albedo_method,const_albedo,const_swr,swr_file,swr_factor, &
                      const_heat, &
                      heatflux_file, &
                      momentum_method, &
@@ -284,7 +289,7 @@
 
 !  sea surface temperature (degC) and sea surface salinity (psu)
    sst     = _ZERO_
-   sst_obs = _ZERO_   
+   sst_obs = _ZERO_
    sss     = _ZERO_
 
 !  sea surface velocities (m/s)
@@ -345,6 +350,7 @@
    rain_impact=.false.
    calc_evaporation=.false.
    swr_method=0
+   albedo_method=1
    const_swr=_ZERO_
    swr_file = ''
    swr_factor=_ONE_
@@ -374,7 +380,7 @@
          LEVEL2 'Using constant short wave radiation= ',const_swr
          I_0 = const_swr
       case (FROMFILE)
-         call register_input_0d(swr_file,1,I_0,scale_factor=swr_factor)
+         call register_input_0d(swr_file,1,I_0,'surface short wave radiation',scale_factor=swr_factor)
          LEVEL2 'Reading short wave radiation data from:'
          LEVEL3 trim(swr_file)
          if (swr_factor .ne. _ONE_) then
@@ -387,6 +393,7 @@
          else
             LEVEL2 'Calculating swr=swr(t(lon),lat,cloud)'
          end if
+         LEVEL2 'Albedo method: ',albedo_method
       case default
    end select
 
@@ -408,7 +415,7 @@
       if (wind_factor .ne. _ONE_) then
          LEVEL3 'applying wind factor= ',wind_factor
       end if
-      
+
       LEVEL3 'heat- and momentum-fluxes:'
       select case (fluxes_method)
          case(1)
@@ -437,7 +444,7 @@
          case (CONSTVAL)
             heat = const_heat
          case (FROMFILE)
-            call register_input_0d(heatflux_file,1,heat)
+            call register_input_0d(heatflux_file,1,heat,'surface heat flux')
             LEVEL2 'Reading heat fluxes from:'
             LEVEL3 trim(heatflux_file)
          case default
@@ -449,8 +456,8 @@
             tx = const_tx
             ty = const_ty
          case (FROMFILE)
-            call register_input_0d(momentumflux_file,1,tx)
-            call register_input_0d(momentumflux_file,2,ty)
+            call register_input_0d(momentumflux_file,1,tx,'surface momentum flux: x-direction')
+            call register_input_0d(momentumflux_file,2,ty,'surface momentum flux: y-direction')
             LEVEL2 'Reading momentum fluxes from:'
             LEVEL3 trim(momentumflux_file)
          case default
@@ -466,7 +473,7 @@
          LEVEL2 'calc_evaporation= ',calc_evaporation
          precip = const_precip
       case (FROMFILE)
-         call register_input_0d(precip_file,1,precip,scale_factor=precip_factor)
+         call register_input_0d(precip_file,1,precip,'precipitation',scale_factor=precip_factor)
          LEVEL2 'Reading precipitation data from:'
          LEVEL3 trim(precip_file)
          if (precip_factor .ne. _ONE_) then
@@ -480,7 +487,7 @@
 !  The observed sea surface temperature
    select case (sst_method)
       case (FROMFILE)
-         call register_input_0d(sst_file,1,sst_obs)
+         call register_input_0d(sst_file,1,sst_obs,'sea surface temperature')
          LEVEL2 'Reading sea surface temperature from:'
          LEVEL3 trim(sst_file)
       case default
@@ -489,7 +496,7 @@
 !  The observed sea surface salinity
    select case (sss_method)
       case (FROMFILE)
-         call register_input_0d(sss_file,1,sss)
+         call register_input_0d(sss_file,1,sss,'sea surface salinity')
          LEVEL2 'Reading sea surface salinity from:'
          LEVEL3 trim(sss_file)
       case default
@@ -536,8 +543,11 @@
 !
 ! !LOCAL VARIABLES:
    REALTYPE        :: hh
+   REALTYPE        :: solar_zenith_angle
    REALTYPE        :: short_wave_radiation
+   REALTYPE        :: zenith_angle
    REALTYPE        :: albedo_water
+   logical         :: have_zenith_angle
 !EOP
 !-----------------------------------------------------------------------
 !BOC
@@ -547,11 +557,12 @@
       call flux_from_meteo(jul,secs)
 
 !     Optionally calculate surface shortwave radiation from location, time, cloud cover.
+      have_zenith_angle = .false.
       if (swr_method .eq. 3) then
          hh = secs*(_ONE_/3600)
-         I_0 = short_wave_radiation(yearday,hh,dlon,dlat,cloud)
-         albedo = albedo_water(1,yearday,hh,dlon,dlat)
-         I_0 = I_0*(_ONE_-albedo)
+         zenith_angle = solar_zenith_angle(yearday,hh,dlon,dlat)
+         have_zenith_angle = .true.
+         I_0 = swr_factor*short_wave_radiation(zenith_angle,yearday,dlon,dlat,cloud)
       end if
    else
 !     If using constant momentum flux, apply time-varying feedback from biogeochemistry to drag.
@@ -562,11 +573,21 @@
 
    end if
 
+   if (swr_method .ne. CONSTVAL) then
+      if (.not. have_zenith_angle) then
+         hh = secs*(_ONE_/3600)
+         zenith_angle = solar_zenith_angle(yearday,hh,dlon,dlat)
+      end if
+      albedo = albedo_water(albedo_method,zenith_angle,yearday)
+      I_0 = I_0*(_ONE_-albedo-bio_albedo)
+   end if
+
+
 !  If reading SST from file, overwrite current (model) SST with observed value,
 !  to be used in output.
    if (sst_method==FROMFILE) sst = sst_obs
 
-#ifndef INTERPOLATE_METEO   
+#ifndef INTERPOLATE_METEO
    if (init_saved_vars) init_saved_vars = .false.
 #endif
 
@@ -595,7 +616,7 @@
 !-----------------------------------------------------------------------
 !BOC
 
-#ifndef INTERPOLATE_METEO   
+#ifndef INTERPOLATE_METEO
    if (calc_fluxes) close(meteo_unit)
 #endif
 
@@ -676,9 +697,7 @@
       u10   = obs(1)*wind_factor
       v10   = obs(2)*wind_factor
       airp  = obs(3)*100. !kbk mbar/hPa --> Pa
-!KB
-      airt  = obs(4) - 10.
-!KB
+      airt  = obs(4)
       rh    = obs(5)
       cloud = obs(6)
 
@@ -706,8 +725,10 @@
       call humidity(hum_method,rh,airp,tw,ta)
       call back_radiation(back_radiation_method, &
                           dlat,tw_k,ta_k,cloud,qb)
+
       call airsea_fluxes(fluxes_method,rain_impact,calc_evaporation, &
                          tw,ta,u10-ssu,v10-ssv,precip,evap,tx2,ty2,qe,qh)
+
       h2     = qb+qe+qh
       cloud2 = cloud
 
@@ -758,8 +779,8 @@
 
    w = sqrt((u10-ssu)*(u10-ssu)+(v10-ssv)*(v10-ssv))
 
-   tx = tx*bio_drag_scale   
-   ty = ty*bio_drag_scale   
+   tx = tx*bio_drag_scale
+   ty = ty*bio_drag_scale
 
    end subroutine flux_from_meteo
 !EOC
