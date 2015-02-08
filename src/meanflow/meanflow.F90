@@ -245,7 +245,7 @@
    allocate(h(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (h)'
    h = _ZERO_
-   call field_manager_register('h', id_dim_z, 'm', 'layer thickness', standard_name='cell_thickness', data=h(1:nlev))
+   call field_manager_register('h', 'm', 'layer thickness', standard_name='cell_thickness', dimensions=(/id_dim_z/), data1d=h(1:nlev))
 
    allocate(ho(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (ho)'
@@ -282,12 +282,12 @@
    allocate(T(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (T)'
    T = _ZERO_
-   call field_manager_register('temp', id_dim_z, 'Celsius', 'temperature', standard_name='sea_water_temperature', data=T(1:nlev))
+   call field_manager_register('temp', 'Celsius', 'temperature', standard_name='sea_water_temperature', dimensions=(/id_dim_z/), data1d=T(1:nlev))
 
    allocate(S(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (S)'
    S = _ZERO_
-   call field_manager_register('salt', id_dim_z, 'g/kg', 'salinity', standard_name='sea_water_practical_salinity', data=S(1:nlev))
+   call field_manager_register('salt', 'g/kg', 'salinity', standard_name='sea_water_practical_salinity', dimensions=(/id_dim_z/), data1d=S(1:nlev))
 
    allocate(rho(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (rho)'

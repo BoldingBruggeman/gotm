@@ -339,7 +339,7 @@
    dlon = lon
    dlat = lat
 
-   call field_manager_register('sst', 'Celsius', 'sea surface temperature', standard_name='sea_surface_temperature', data=sst)
+   call field_manager_register('sst', 'Celsius', 'sea surface temperature', standard_name='sea_surface_temperature', data0d=sst)
 
 !  initialize namelist variables to reasonable defaults.
    calc_fluxes=.false.

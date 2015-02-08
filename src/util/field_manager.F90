@@ -4,7 +4,7 @@ module field_manager
 
    implicit none
 
-   ! Public subrotutine and functions
+   ! Public subroutine and functions
    public field_manager_init, field_manager_clean, field_manager_register, field_manager_send_data, field_manager_select_for_output
 
    ! Public data types and variables
@@ -17,6 +17,7 @@ module field_manager
    private
 
    integer,parameter :: string_length = 256
+   integer,parameter :: nmaxdims = 10
    integer,parameter :: rk = kind(_ONE_)
 
    integer, parameter :: id_dim_lon  = 1
@@ -29,36 +30,37 @@ module field_manager
    integer            :: ny
    integer            :: nz
 
+   logical :: singleton_dims(nmaxdims)
+
    real(rk),parameter :: default_fill_value = -huge(_ONE_)
    real(rk),parameter :: default_minimum = default_fill_value + spacing(default_fill_value)
    real(rk),parameter :: default_maximum = huge(_ONE_)
 
    type type_field
-      character(len=string_length)  :: name          = ''
-      character(len=string_length)  :: units         = ''
-      character(len=string_length)  :: long_name     = ''
-      character(len=string_length)  :: standard_name = ''
-      real(rk)                      :: fill_value    = default_fill_value
-      real(rk)                      :: minimum       = default_minimum
-      real(rk)                      :: maximum       = default_maximum
-      logical                       :: in_output     = .false.
-      integer                       :: status        = 0 ! 1 = metadata provided, 2 = data provided
-      integer,allocatable           :: dimensions(:)
-      real(rk),pointer              :: data_0d       => null()
-      real(rk),pointer,dimension(:) :: data_1d       => null()
-      type (type_field),pointer :: next    => null()
+      character(len=string_length) :: name           = ''
+      character(len=string_length) :: units          = ''
+      character(len=string_length) :: long_name      = ''
+      character(len=string_length) :: standard_name  = ''
+      real(rk)                     :: fill_value     = default_fill_value
+      real(rk)                     :: minimum        = default_minimum
+      real(rk)                     :: maximum        = default_maximum
+      logical                      :: in_output      = .false.
+      integer                      :: status         = 0 ! 1 = metadata provided, 2 = data provided
+      integer,allocatable          :: dimensions(:)
+      real(rk),pointer             :: data_0d        => null()
+      real(rk),pointer             :: data_1d(:)     => null()
+      real(rk),pointer             :: data_2d(:,:)   => null()
+      real(rk),pointer             :: data_3d(:,:,:) => null()
+      type (type_field),pointer    :: next           => null()
    end type type_field
 
    type (type_field),pointer :: first_field
 
-   interface field_manager_register
-      module procedure register_field_0d
-      module procedure register_field_1d
-   end interface
-
    interface field_manager_send_data
       module procedure send_data_0d
       module procedure send_data_1d
+      module procedure send_data_2d
+      module procedure send_data_3d
       module procedure send_data_by_name_0d
       module procedure send_data_by_name_1d
    end interface
@@ -67,6 +69,9 @@ contains
 
    subroutine field_manager_init(nlev)
       integer,intent(in) :: nlev
+      singleton_dims = .true.
+      singleton_dims(id_dim_z)  = .false.
+      singleton_dims(id_dim_z1) = .false.
       nx = 1
       ny = 1
       nz = nlev
@@ -151,32 +156,22 @@ contains
       end if
    end function find_field
 
-   subroutine register_field_0d(name, units, long_name, standard_name, fill_value, minimum, maximum, data, used)
+   subroutine field_manager_register(name, units, long_name, standard_name, fill_value, minimum, maximum, dimensions, data0d, data1d, data2d, data3d, used)
       character(len=*),          intent(in)  :: name, units, long_name
       character(len=*),optional, intent(in)  :: standard_name
       real(rk),        optional, intent(in)  :: fill_value, minimum, maximum
-      real(rk),        optional, target      :: data
+      integer,         optional, intent(in)  :: dimensions(:)
+      real(rk),        optional, target      :: data0d,data1d(:),data2d(:,:),data3d(:,:,:)
       logical,         optional, intent(out) :: used
 
       type (type_field), pointer :: field
 
-      field => add_field(name, units, long_name, standard_name, fill_value, minimum, maximum, used=used)
-      if (present(data)) call send_data_0d(field,data)
-   end subroutine register_field_0d
-   
-   subroutine register_field_1d(name, dimension, units, long_name, standard_name, fill_value, minimum, maximum, data, used)
-      character(len=*),          intent(in)  :: name, units, long_name
-      integer,                   intent(in)  :: dimension
-      character(len=*),optional, intent(in)  :: standard_name
-      real(rk),        optional, intent(in)  :: fill_value, minimum, maximum
-      real(rk),        optional, target      :: data(:)
-      logical,         optional, intent(out) :: used
-
-      type (type_field), pointer :: field
-
-      field => add_field(name, units, long_name, standard_name, fill_value, minimum, maximum, (/dimension/), used)
-      if (present(data)) call send_data_1d(field,data)
-   end subroutine register_field_1d
+      field => add_field(name, units, long_name, standard_name, fill_value, minimum, maximum, dimensions, used=used)
+      if (present(data0d)) call send_data_0d(field,data0d)
+      if (present(data1d)) call send_data_1d(field,data1d)
+      if (present(data2d)) call send_data_2d(field,data2d)
+      if (present(data3d)) call send_data_3d(field,data3d)
+   end subroutine field_manager_register
 
    subroutine send_data_by_name_0d(name, data)
       character(len=*),intent(in) :: name
@@ -200,27 +195,102 @@ contains
       call send_data_1d(field,data)
    end subroutine send_data_by_name_1d
 
+   subroutine get_expected_extents(field,extents)
+      type (type_field),  intent(in)  :: field
+      integer,allocatable,intent(out) :: extents(:)
+
+      integer :: i,n
+
+      ! First count data dimensions (excludes time)
+      n = 0
+      do i=1,size(field%dimensions)
+         if (.not.singleton_dims(field%dimensions(i))) n = n + 1
+      end do
+
+      ! Allocate array to hold expected extents
+      allocate(extents(n))
+
+      ! Fill array with extents
+      n = 0
+      do i=1,size(field%dimensions)
+         if (.not.singleton_dims(field%dimensions(i))) then
+            n = n + 1
+            select case (field%dimensions(i))
+               case (id_dim_lon); extents(n) = nx
+               case (id_dim_lat); extents(n) = ny
+               case (id_dim_z,id_dim_z1); extents(n) = nz
+               case default
+                  call fatal_error('get_expected_extents','Unknown dimension id.')
+            end select
+         end if
+      end do
+
+   end subroutine get_expected_extents
+
+   subroutine prepare_send_data(field,extents)
+      type (type_field), intent(inout) :: field
+      integer,           intent(in)    :: extents(:)
+
+      integer,allocatable              :: reqextents(:)
+      integer                          :: i
+      character(len=2)                 :: str1,str2,str3
+
+      ! Get expected array extents
+      call get_expected_extents(field,reqextents)
+
+      ! Check array rank
+      if (size(extents)/=size(reqextents)) then
+         write (str1,'(i0)') size(extents)
+         write (str2,'(i0)') size(reqextents)
+         call fatal_error('prepare_send_data',trim(str1)//'D data provided for '//trim(field%name)//', but this field should have '//trim(str2)//' dimensions.')
+      end if
+
+      ! Check array extents
+      do i=1,size(reqextents)
+         if (extents(i)/=reqextents(i)) then
+            write (str1,'(i0)') i
+            write (str2,'(i0)') extents(i)
+            write (str3,'(i0)') reqextents(i)
+            call fatal_error('prepare_send_data', 'Field '//trim(field%name)//', dimension  '//trim(str1)//': &
+               &extents of provided data ('//trim(str2)//') does not match expected value '//trim(str3)//'.')
+         end if
+      end do
+
+      if (field%status>1) call fatal_error('prepare_send_data','Data for field "'//trim(field%name)//'" have already been provided.')
+      field%status = 2
+   end subroutine prepare_send_data
+
    subroutine send_data_0d(field, data)
       type (type_field), intent(inout) :: field
-      real(rk),target                            :: data
-      if (field%status>1) call fatal_error('add_field','Data for field "'//trim(field%name)//'" has already been provided.')
-      field%status = 2
+      real(rk),target                  :: data
+      call prepare_send_data(field,shape(data))
       field%data_0d => data
    end subroutine send_data_0d
 
    subroutine send_data_1d(field, data)
       type (type_field), intent(inout) :: field
-      real(rk),target                            :: data(:)
-      if (field%status>1) call fatal_error('add_field','Data for field "'//trim(field%name)//'" has already been provided.')
-      field%status = 2
-      if (size(data)/=nz) call fatal_error('send_data_1d', &
-         'length of data array provided for variable '//trim(field%name)//' does not match extents of its spatial domain.')
+      real(rk),target                  :: data(:)
+      call prepare_send_data(field,shape(data))
       field%data_1d => data
    end subroutine send_data_1d
-   
+
+   subroutine send_data_2d(field, data)
+      type (type_field), intent(inout) :: field
+      real(rk),target                  :: data(:,:)
+      call prepare_send_data(field,shape(data))
+      field%data_2d => data
+   end subroutine send_data_2d
+
+   subroutine send_data_3d(field, data)
+      type (type_field), intent(inout) :: field
+      real(rk),target                  :: data(:,:,:)
+      call prepare_send_data(field,shape(data))
+      field%data_3d => data
+   end subroutine send_data_3d
+
    subroutine fatal_error(location,error)
       character(len=*),intent(in) :: location,error
-      
+
       FATAL trim(location)//': '//trim(error)
       stop 'field_manager::fatal_error'
    end subroutine

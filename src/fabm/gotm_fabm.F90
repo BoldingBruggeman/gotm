@@ -208,9 +208,9 @@
 
       ! Inform output manager about available diagnostics
       do i=1,size(model%diagnostic_variables)
-         call field_manager_register(model%diagnostic_variables(i)%name, id_dim_z, model%diagnostic_variables(i)%units, &
+         call field_manager_register(model%diagnostic_variables(i)%name, model%diagnostic_variables(i)%units, &
             model%diagnostic_variables(i)%long_name, minimum=model%diagnostic_variables(i)%minimum, maximum=model%diagnostic_variables(i)%maximum, &
-            fill_value=model%diagnostic_variables(i)%missing_value, used=in_output)
+            fill_value=model%diagnostic_variables(i)%missing_value, dimensions=(/id_dim_z/), used=in_output)
          if (in_output) model%diagnostic_variables(i)%save = .true.
       end do
       do i=1,size(model%horizontal_diagnostic_variables)
@@ -364,9 +364,9 @@
    do i=1,size(model%state_variables)
       cc(:,i) = model%state_variables(i)%initial_value
       call fabm_link_bulk_state_data(model,i,cc(1:,i))
-      call field_manager_register(model%state_variables(i)%name, id_dim_z, model%state_variables(i)%units, &
+      call field_manager_register(model%state_variables(i)%name, model%state_variables(i)%units, &
          model%state_variables(i)%long_name, minimum=model%state_variables(i)%minimum, maximum=model%state_variables(i)%maximum, &
-         fill_value=model%state_variables(i)%missing_value, data = cc(1:,i))
+         fill_value=model%state_variables(i)%missing_value, dimensions=(/id_dim_z/), data1d = cc(1:,i))
    end do
    do i=1,size(model%bottom_state_variables)
       cc(1,size(model%state_variables)+i) = model%bottom_state_variables(i)%initial_value
@@ -374,7 +374,7 @@
       call field_manager_register(model%bottom_state_variables(i)%name, model%bottom_state_variables(i)%units, &
          model%bottom_state_variables(i)%long_name, minimum=model%bottom_state_variables(i)%minimum, &
          maximum=model%bottom_state_variables(i)%maximum, fill_value=model%state_variables(i)%missing_value, &
-         data=cc(1,size(model%state_variables)+i))
+         data0d=cc(1,size(model%state_variables)+i))
    end do
    do i=1,size(model%surface_state_variables)
       cc(1,size(model%state_variables)+size(model%bottom_state_variables)+i) = model%surface_state_variables(i)%initial_value
@@ -382,7 +382,7 @@
       call field_manager_register(model%surface_state_variables(i)%name, model%surface_state_variables(i)%units, &
          model%surface_state_variables(i)%long_name, minimum=model%surface_state_variables(i)%minimum, &
          maximum=model%surface_state_variables(i)%maximum, fill_value=model%surface_state_variables(i)%missing_value, &
-         data=cc(1,size(model%state_variables)+size(model%bottom_state_variables)+i))
+         data0d=cc(1,size(model%state_variables)+size(model%bottom_state_variables)+i))
    end do
 
    ! Send pointers to diagnostic data to output manager.
