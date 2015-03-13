@@ -325,6 +325,8 @@
 
 #endif
 
+   call field_manager_list()
+
    LEVEL2 'done.'
    STDERR LINE
 

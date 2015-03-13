@@ -237,10 +237,12 @@
    allocate(ga(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (ga)'
    ga = _ZERO_
+   call field_manager_register('ga', '', 'coordinate scaling', standard_name='??', dimensions=(/id_dim_z/), data1d=ga(1:nlev))
 
    allocate(z(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (z)'
    z = _ZERO_
+   call field_manager_register('z', 'm', 'depth', standard_name='??', dimensions=(/id_dim_z/), data1d=z(1:nlev))
 
    allocate(h(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (h)'
@@ -250,39 +252,47 @@
    allocate(ho(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (ho)'
    ho = _ZERO_
+   call field_manager_register('ho', 'm', 'layer thickness - old time step', standard_name='cell_thickness', dimensions=(/id_dim_z/), data1d=h(1:nlev))
 
    allocate(u(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (u)'
    u = _ZERO_
+   call field_manager_register('u', 'm/s', 'x-velocity', standard_name='??', dimensions=(/id_dim_z/), data1d=u(1:nlev))
 
    allocate(uo(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (uo)'
    uo = _ZERO_
+   call field_manager_register('uo', 'm/s', 'x-velocity - old time step', standard_name='??', dimensions=(/id_dim_z/), data1d=uo(1:nlev))
 
    allocate(v(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (v)'
    v = _ZERO_
+   call field_manager_register('v', 'm/s', 'y-velocity', standard_name='??', dimensions=(/id_dim_z/), data1d=v(1:nlev))
 
    allocate(vo(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (vo)'
    vo = _ZERO_
+   call field_manager_register('vo', 'm/s', 'y-velocity - old time step', standard_name='??', dimensions=(/id_dim_z/), data1d=vo(1:nlev))
 
    allocate(w(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (w)'
    w = _ZERO_
+   call field_manager_register('w', 'm/s', 'z-velocity', standard_name='??', dimensions=(/id_dim_z/), data1d=w(1:nlev))
 
    allocate(fric(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (fric)'
    fric = _ZERO_
+   call field_manager_register('fric', '', 'extra friction coefficient in water column', standard_name='??', dimensions=(/id_dim_z/), data1d=fric(1:nlev))
 
    allocate(drag(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (drag)'
    drag = _ZERO_
+   call field_manager_register('drag', '', 'drag coefficient in water column', standard_name='??', dimensions=(/id_dim_z/), data1d=drag(1:nlev))
 
    allocate(T(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (T)'
    T = _ZERO_
-   call field_manager_register('temp', 'Celsius', 'temperature', standard_name='sea_water_temperature', dimensions=(/id_dim_z/), data1d=T(1:nlev))
+   call field_manager_register('temp', 'Celsius', 'potential temperature', standard_name='sea_water_temperature', dimensions=(/id_dim_z/), data1d=T(1:nlev))
 
    allocate(S(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (S)'
@@ -292,72 +302,89 @@
    allocate(rho(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (rho)'
    rho = _ZERO_
+   call field_manager_register('rho', 'kg/m3', 'potential density', standard_name='??', dimensions=(/id_dim_z/), data1d=rho(1:nlev))
 
    allocate(NN(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (NN)'
    NN = _ZERO_
+   call field_manager_register('NN', '1/s**2', 'buoyancy frequency squared', standard_name='??', dimensions=(/id_dim_z/), data1d=NN(1:nlev))
 
    allocate(NNT(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (NNT)'
    NNT = _ZERO_
+   call field_manager_register('NNT', '1/s**2', 'contribution of T-gradient to buoyancy frequency squared', standard_name='??', dimensions=(/id_dim_z/), data1d=NNT(1:nlev))
 
    allocate(NNS(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (NNS)'
    NNS = _ZERO_
+   call field_manager_register('NNS', '1/s**2', 'contribution of S-gradient to buoyancy frequency squared', standard_name='??', dimensions=(/id_dim_z/), data1d=NNS(1:nlev))
 
    allocate(SS(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (SS)'
    SS = _ZERO_
+   call field_manager_register('SS', '1/s**2', 'shear frequency squared', standard_name='??', dimensions=(/id_dim_z/), data1d=SS(1:nlev))
 
    allocate(SSU(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (SSU)'
    SSU = _ZERO_
+   call field_manager_register('SSU', '1/s**2', 'x-contribution to shear frequency squared', standard_name='??', dimensions=(/id_dim_z/), data1d=SSU(1:nlev))
 
    allocate(SSV(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (SSV)'
    SSV = _ZERO_
+   call field_manager_register('SSV', '1/s**2', 'y-contribution to shear frequency squared', standard_name='??', dimensions=(/id_dim_z/), data1d=SSV(1:nlev))
 
    allocate(xP(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (xP)'
    xP = _ZERO_
+   call field_manager_register('xP', 'm**2/s**3', 'extra turbulence production', standard_name='??', dimensions=(/id_dim_z/), data1d=xP(1:nlev))
 
    allocate(buoy(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (buoy)'
    buoy = _ZERO_
+   call field_manager_register('buoy', 'm/s**2', 'buoyancy', standard_name='??', dimensions=(/id_dim_z/), data1d=buoy(1:nlev))
 
    allocate(rad(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (rad)'
    rad = _ZERO_
+   call field_manager_register('rad', 'W/m**2', 'short-wave radiation', standard_name='??', dimensions=(/id_dim_z/), data1d=rad(1:nlev))
 
    allocate(avh(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (avh)'
    avh = _ZERO_
+   call field_manager_register('avh', 'm**2/s', 'eddy diffusivity', standard_name='??', dimensions=(/id_dim_z/), data1d=avh(1:nlev))
 
    allocate(bioshade(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (bioshade)'
-   bioshade= _ONE_
+   bioshade = _ONE_
+   call field_manager_register('bioshade', '', 'degree of bio-shading', standard_name='??', dimensions=(/id_dim_z/), data1d=bioshade(1:nlev))
 
 # ifdef EXTRA_OUTPUT
 
    allocate(mean1(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_meanflow: Error allocating (mean1)'
    mean1 = _ZERO_
+   call field_manager_register('mean1', '??', '1. mean dummy variable', standard_name='??', dimensions=(/id_dim_z/), data1d=mean1(1:nlev))
 
    allocate(mean2(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_meanflow: Error allocating (mean2)'
    mean2 = _ZERO_
+   call field_manager_register('mean2', '??', '2. mean dummy variable', standard_name='??', dimensions=(/id_dim_z/), data1d=mean2(1:nlev))
 
    allocate(mean3(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_meanflow: Error allocating (mean3)'
    mean3 = _ZERO_
+   call field_manager_register('mean3', '??', '3. mean dummy variable', standard_name='??', dimensions=(/id_dim_z/), data1d=mean3(1:nlev))
 
    allocate(mean4(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_meanflow: Error allocating (mean4)'
    mean4 = _ZERO_
+   call field_manager_register('mean4', '??', '4. mean dummy variable', standard_name='??', dimensions=(/id_dim_z/), data1d=mean4(1:nlev))
 
    allocate(mean5(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_meanflow: Error allocating (mean5)'
    mean5 = _ZERO_
+   call field_manager_register('mean5', '??', '5. mean dummy variable', standard_name='??', dimensions=(/id_dim_z/), data1d=mean5(1:nlev))
 
 # endif
 

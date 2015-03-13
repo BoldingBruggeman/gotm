@@ -30,6 +30,7 @@
 !
 !
 ! !USES:
+   use field_manager
    IMPLICIT NONE
 
 !  default: all is private.
@@ -496,60 +497,74 @@
    allocate(tke(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (tke)'
    tke = k_min
+   call field_manager_register('tke', 'm2/s2', 'turbulent kinetic energy', standard_name='??', dimensions=(/id_dim_z1/), data1d=tke(1:nlev))
 
    allocate(tkeo(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (tkeo)'
    tkeo = k_min
+   call field_manager_register('tkeo', 'm2/s2', 'turbulent kinetic energy - old time step', standard_name='??', dimensions=(/id_dim_z1/), data1d=tkeo(1:nlev))
 
    allocate(eps(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (eps)'
    eps = eps_min
+   call field_manager_register('eps', 'm2/s3', 'dissipation rate of tke', standard_name='??', dimensions=(/id_dim_z1/), data1d=eps(1:nlev))
 
    allocate(L(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (L)'
    L = _ZERO_
+   call field_manager_register('L', 'm', 'turbulent macro length scale', standard_name='??', dimensions=(/id_dim_z1/), data1d=L(1:nlev))
 
    LEVEL2 'allocation memory..'
    allocate(kb(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (kb)'
    kb = kb_min
+   call field_manager_register('kb', 'm2/s4', '(half) buoyancy variance', standard_name='??', dimensions=(/id_dim_z1/), data1d=kb(1:nlev))
 
    LEVEL2 'allocation memory..'
    allocate(epsb(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (epsb)'
    epsb = epsb_min
+   call field_manager_register('epsb', 'm2/s5', 'destruction of kb', standard_name='??', dimensions=(/id_dim_z1/), data1d=epsb(1:nlev))
 
    allocate(P(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (P)'
    P = _ZERO_
+   call field_manager_register('P', 'm2/s3', 'shear production', standard_name='??', dimensions=(/id_dim_z1/), data1d=P(1:nlev))
 
    allocate(B(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (B)'
    B = _ZERO_
+   call field_manager_register('G', 'm2/s3', 'buoyancy production', standard_name='??', dimensions=(/id_dim_z1/), data1d=B(1:nlev))
 
    allocate(Pb(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (Pb)'
    Pb = _ZERO_
+   call field_manager_register('Pb', 'm2/s5', 'production of kb', standard_name='??', dimensions=(/id_dim_z1/), data1d=Pb(1:nlev))
 
    allocate(num(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (num)'
    num = 1.0D-6
+   call field_manager_register('num', 'm2/s', 'viscosity', standard_name='??', dimensions=(/id_dim_z1/), data1d=num(1:nlev))
 
    allocate(nuh(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (nuh)'
    nuh = 1.0D-6
+   call field_manager_register('nuh', 'm2/s', 'heat diffusivity', standard_name='??', dimensions=(/id_dim_z1/), data1d=nuh(1:nlev))
 
    allocate(nus(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (nus)'
    nus = 1.0D-6
+   call field_manager_register('nus', 'm2/s', 'salt diffusivity', standard_name='??', dimensions=(/id_dim_z1/), data1d=nus(1:nlev))
 
    allocate(gamu(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (gamu)'
    gamu = _ZERO_
+   call field_manager_register('gamu', 'm2/s2', 'non-local x-momentum flux', standard_name='??', dimensions=(/id_dim_z1/), data1d=gamu(1:nlev))
 
    allocate(gamv(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (gamv)'
    gamv = _ZERO_
+   call field_manager_register('gamv', 'm2/s2', 'non-local y-momentum flux', standard_name='??', dimensions=(/id_dim_z1/), data1d=gamv(1:nlev))
 
    allocate(gamb(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (gamb)'
@@ -558,80 +573,99 @@
    allocate(gamh(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (gamh)'
    gamh = _ZERO_
+   call field_manager_register('gamh', 'K m/s', 'non-local heat flux', standard_name='??', dimensions=(/id_dim_z1/), data1d=gamh(1:nlev))
 
    allocate(gams(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (gams)'
    gams = _ZERO_
+   call field_manager_register('gams', 'g/kg m/s', 'non-local salinity flux', standard_name='??', dimensions=(/id_dim_z1/), data1d=gams(1:nlev))
 
    allocate(cmue1(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (cmue1)'
    cmue1 = _ZERO_
+   call field_manager_register('cmue1', '', '', standard_name='??', dimensions=(/id_dim_z1/), data1d=cmue1(1:nlev))
 
    allocate(cmue2(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (cmue2)'
    cmue2 = _ZERO_
+   call field_manager_register('cmue2', '', '', standard_name='??', dimensions=(/id_dim_z1/), data1d=cmue2(1:nlev))
 
    allocate(gam(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (gam)'
    gam = _ZERO_
+   call field_manager_register('gam', '', '', standard_name='??', dimensions=(/id_dim_z1/), data1d=gam(1:nlev))
 
    allocate(an(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (an)'
    an = _ZERO_
+   call field_manager_register('an', '', '', standard_name='??', dimensions=(/id_dim_z1/), data1d=an(1:nlev))
 
    allocate(as(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (as)'
    as = _ZERO_
+   call field_manager_register('as', '', '', standard_name='??', dimensions=(/id_dim_z1/), data1d=as(1:nlev))
 
    allocate(at(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (at)'
    at = _ZERO_
+   call field_manager_register('at', '', '', standard_name='??', dimensions=(/id_dim_z1/), data1d=at(1:nlev))
 
    allocate(r(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (r)'
    r = _ZERO_
+   call field_manager_register('r', '', '', standard_name='??', dimensions=(/id_dim_z1/), data1d=r(1:nlev))
 
    allocate(Rig(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (Rig)'
    Rig = _ZERO_
+   call field_manager_register('Rig', '', '', standard_name='??', dimensions=(/id_dim_z1/), data1d=Rig(1:nlev))
 
    allocate(xRf(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (xRf)'
    xRf = _ZERO_
+   call field_manager_register('xRf', '', '', standard_name='??', dimensions=(/id_dim_z1/), data1d=xRf(1:nlev))
 
    allocate(uu(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (uu)'
    uu = _ZERO_
+   call field_manager_register('uu', 'm2/s2', 'variance of u-fluctuation', standard_name='??', dimensions=(/id_dim_z1/), data1d=uu(1:nlev))
 
    allocate(vv(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (vv)'
    vv = _ZERO_
+   call field_manager_register('vv', 'm2/s2', 'variance of v-fluctuation', standard_name='??', dimensions=(/id_dim_z1/), data1d=vv(1:nlev))
 
    allocate(ww(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (ww)'
    ww = _ZERO_
+   call field_manager_register('ww', 'm2/s2', 'variance of w-fluctuation', standard_name='??', dimensions=(/id_dim_z1/), data1d=ww(1:nlev))
 
 # ifdef EXTRA_OUTPUT
 
    allocate(turb1(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (turb1)'
    turb1 = _ZERO_
+   call field_manager_register('turb1', '', '1. turbulence dummy variable', dimensions=(/id_dim_z1/), data1d=turb1(1:nlev))
 
    allocate(turb2(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (turb2)'
    turb2 = _ZERO_
+   call field_manager_register('turb2', '', '2. turbulence dummy variable', dimensions=(/id_dim_z1/), data1d=turb2(1:nlev))
 
    allocate(turb3(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (turb3)'
    turb3 = _ZERO_
+   call field_manager_register('turb3', '', '3. turbulence dummy variable', dimensions=(/id_dim_z1/), data1d=turb3(1:nlev))
 
    allocate(turb4(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (turb4)'
    turb4 = _ZERO_
+   call field_manager_register('turb4', '', '4. turbulence dummy variable', dimensions=(/id_dim_z1/), data1d=turb4(1:nlev))
 
    allocate(turb5(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (turb5)'
    turb5 = _ZERO_
+   call field_manager_register('turb5', '', '5. turbulence dummy variable', dimensions=(/id_dim_z1/), data1d=turb5(1:nlev))
 
 # endif
 

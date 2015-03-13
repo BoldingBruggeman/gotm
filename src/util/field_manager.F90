@@ -5,7 +5,7 @@ module field_manager
    implicit none
 
    ! Public subroutine and functions
-   public field_manager_init, field_manager_clean, field_manager_register, field_manager_send_data, field_manager_select_for_output
+   public field_manager_init, field_manager_list, field_manager_clean, field_manager_register, field_manager_send_data, field_manager_select_for_output
 
    ! Public data types and variables
    public type_field,first_field,nx,ny,nz
@@ -36,7 +36,10 @@ module field_manager
    real(rk),parameter :: default_minimum = default_fill_value + spacing(default_fill_value)
    real(rk),parameter :: default_maximum = huge(_ONE_)
 
+   integer            :: counter=0
+
    type type_field
+      integer                      :: id             = 0
       character(len=string_length) :: name           = ''
       character(len=string_length) :: units          = ''
       character(len=string_length) :: long_name      = ''
@@ -69,13 +72,34 @@ contains
 
    subroutine field_manager_init(nlev)
       integer,intent(in) :: nlev
+      counter = 0
       singleton_dims = .true.
-      singleton_dims(id_dim_z)  = .false.
-      singleton_dims(id_dim_z1) = .false.
+!KB      singleton_dims(id_dim_lon) = .false.
+!KB      singleton_dims(id_dim_lat) = .false.
+      singleton_dims(id_dim_z)   = .false.
+      singleton_dims(id_dim_z1)  = .false.
       nx = 1
       ny = 1
       nz = nlev
       nullify(first_field)
+   end subroutine
+
+   subroutine field_manager_list()
+      type (type_field), pointer :: field, next_field
+      character(256) :: line
+      field => first_field
+      write(line,'(A8,4x,A12,4x,A40)') 'name','unit',adjustl('long_name')
+      write(*,*) trim(line)
+      write(line,'(A68)') '----------------------------------------------------------------'
+      write(*,*) trim(line)
+      do while (associated(field))
+         write(line,'(I2,2x,A15,2x,A15,2x,A45)') field%id,adjustl(field%name),adjustl(field%units),adjustl(field%long_name)
+         write(*,*) trim(line)
+!KB         write(*,*) field%dimensions
+         next_field => field%next
+         field => next_field
+      end do
+!      stop 'kurt'
    end subroutine
 
    subroutine field_manager_clean()
@@ -102,6 +126,8 @@ contains
       field%status = 1
 
       ! Copy field configuration
+      counter = counter + 1
+      field%id   = counter
       field%name = name
       field%units = units
       field%long_name = long_name
@@ -112,6 +138,7 @@ contains
       if (present(dimensions)) then
          allocate(field%dimensions(size(dimensions)+3))
          field%dimensions(3:2+size(dimensions)) = dimensions
+!KBwrite(*,*) 'aa ',dimensions,size(field%dimensions)
       else
          allocate(field%dimensions(3))
       end if
@@ -224,6 +251,8 @@ contains
             end select
          end if
       end do
+
+!KBwrite(*,*) 'bb ',extents
 
    end subroutine get_expected_extents
 
