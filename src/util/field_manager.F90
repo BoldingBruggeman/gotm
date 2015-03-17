@@ -99,8 +99,8 @@ contains
          next_field => field%next
          field => next_field
       end do
-!      stop 'kurt'
-   end subroutine
+      stop 'field_manager_list()'
+   end subroutine field_manager_list
 
    subroutine field_manager_clean()
       type (type_field), pointer :: field, next_field
