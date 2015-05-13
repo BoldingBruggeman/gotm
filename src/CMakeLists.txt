@@ -146,6 +146,8 @@ add_library(turbulence
 target_link_libraries(turbulence util)
 set_property(TARGET turbulence PROPERTY Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules)
 
+set_property(TARGET util turbulence PROPERTY FOLDER gotm)
+
 option(GOTM_USE_FABM "Include support for Framework for Aquatic Biogeochemical Models (fabm.net)" ON)
 if(GOTM_USE_FABM)
   find_path(FABM_BASE src/fabm.F90 DOC "Path to FABM source directory.")
@@ -169,6 +171,7 @@ if(GOTM_USE_FABM)
   set_property(TARGET gotm_fabm APPEND PROPERTY INCLUDE_DIRECTORIES "${FABM_INCLUDE_DIRS}")
   set_property(TARGET gotm_fabm APPEND PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${FABM_INCLUDE_DIRS}")
   set_property(TARGET gotm_fabm PROPERTY Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules)
+  set_property(TARGET gotm_fabm PROPERTY FOLDER gotm)
   add_definitions(-D_FABM_)
   target_link_libraries(gotm_fabm ${FABM_LIBRARIES})
 else()
@@ -243,6 +246,8 @@ add_library(gotm OBJECT
            )
 add_dependencies(gotm input output_manager output util meanflow turbulence observations airsea)
 
+set_property(TARGET input airsea observations meanflow output gotm PROPERTY FOLDER gotm)
+
 #option(GOTM_USE_ICE "Include ICE support" OFF)
 #if(GOTM_USE_ICE)
 #  add_library(ice OBJECT
@@ -258,33 +263,7 @@ if(GOTM_USE_SEAGRASS)
   set(EXTRA_SRCS ${EXTRA_SRCS} $<TARGET_OBJECTS:seagrass>)
   add_dependencies(seagrass output meanflow)
   add_dependencies(gotm seagrass)
-endif()
-
-option(GOTM_USE_BIO "Enable legacy biogeochemical modules" OFF)
-if(GOTM_USE_BIO)
-  add_definitions(-DBIO)
-  add_library(bio OBJECT
-              extras/bio/bio.F90
-              extras/bio/bio_fluxes.F90
-              extras/bio/bio_save.F90
-              extras/bio/bio_alloc_info.F90
-              extras/bio/bio_var.F90
-              extras/bio/template/bio_template.F90
-              extras/bio/npzd/bio_npzd.F90
-              extras/bio/cl/bio_cl.F90
-              extras/bio/iow/bio_iow.F90
-              extras/bio/fasham/bio_fasham.F90
-              extras/bio/sed/bio_sed.F90
-              #extras/bio/mab/bio_mab.F90
-              #extras/bio/rolm/bio_rolm.F90
-              extras/bio/npzd_fe/bio_npzd_fe.F90
-              extras/bio/photo/bio_photo.F90
-              extras/bio/mangan/bio_mangan.F90
-             )
-  set_property(TARGET bio APPEND PROPERTY COMPILE_DEFINITIONS NO_0D_BIO BIO_TEMPLATE BIO_NPZD BIO_CL BIO_IOW BIO_FASHAM BIO_SED BIO_NPZD_FE BIO_PHOTO BIO_MANGAN)
-  set(EXTRA_SRCS ${EXTRA_SRCS} $<TARGET_OBJECTS:bio>)
-  add_dependencies(bio util output)
-  add_dependencies(gotm bio)
+  set_property(TARGET seagrass PROPERTY FOLDER gotm)
 endif()
 
 if(GOTM_USE_FABM)
@@ -296,6 +275,7 @@ if(GOTM_USE_FABM)
   add_dependencies(gotm_fabm_io input output gotm_fabm)
   add_dependencies(gotm gotm_fabm gotm_fabm_io)
   set_property(TARGET gotm APPEND PROPERTY INCLUDE_DIRECTORIES "${FABM_INCLUDE_DIRS}")
+  set_property(TARGET gotm_fabm_io PROPERTY FOLDER gotm)
 endif(GOTM_USE_FABM)
 
 # Build GOTM executable.
