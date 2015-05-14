@@ -144,8 +144,10 @@
    namelist /model_setup/ title,nlev,dt,cnpar,buoy_method
    namelist /station/     name,latitude,longitude,depth
    namelist /time/        timefmt,MaxN,start,stop
-   namelist /output/      out_fmt,out_dir,out_fn,nfirst,nsave,sync_out, &
+   namelist /output/      list_fields, &
+                          out_fmt,out_dir,out_fn,nfirst,nsave,sync_out, &
                           diagnostics,mld_method,diff_k,Ri_crit,rad_corr
+   logical          ::    list_fields=.false.
    integer          ::    rc
 !
 !-----------------------------------------------------------------------
@@ -290,6 +292,8 @@
    end if
 
 #endif
+
+   if (list_fields) call field_manager_list()
 
    LEVEL2 'done.'
    STDERR LINE
