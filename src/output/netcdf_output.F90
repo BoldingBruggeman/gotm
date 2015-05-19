@@ -43,10 +43,10 @@ contains
       iret = nf90_create(self%path,NF90_CLOBBER,self%ncid); call check_err(iret)
 
       ! Create dimensions [TODO: only those used in the current file]
-      iret = nf90_def_dim(self%ncid, 'lon',  1,  dims_ids(id_dim_lon )); call check_err(iret)
-      iret = nf90_def_dim(self%ncid, 'lat',  1,  dims_ids(id_dim_lat )); call check_err(iret)
-      iret = nf90_def_dim(self%ncid, 'z',    nz, dims_ids(id_dim_z   )); call check_err(iret)
-      iret = nf90_def_dim(self%ncid, 'z1',   nz, dims_ids(id_dim_z1  )); call check_err(iret)
+      iret = nf90_def_dim(self%ncid, 'lon',  self%field_manager%dimension_length(id_dim_lon), dims_ids(id_dim_lon )); call check_err(iret)
+      iret = nf90_def_dim(self%ncid, 'lat',  self%field_manager%dimension_length(id_dim_lat), dims_ids(id_dim_lat )); call check_err(iret)
+      iret = nf90_def_dim(self%ncid, 'z',    self%field_manager%dimension_length(id_dim_z),   dims_ids(id_dim_z   )); call check_err(iret)
+      iret = nf90_def_dim(self%ncid, 'z1',   self%field_manager%dimension_length(id_dim_z1),  dims_ids(id_dim_z1  )); call check_err(iret)
       iret = nf90_def_dim(self%ncid, 'time', NF90_UNLIMITED, dims_ids(id_dim_time)); call check_err(iret)
 
       ! Create coordinates
@@ -110,18 +110,12 @@ contains
          ! Fill arrays with start index and count per dimension
          do i=1,size(used_field%source%dimensions)
             select case (used_field%source%dimensions(i))
-               case (id_dim_lon)
-                  start(i) = 1
-                  edges(i) = nx
-               case (id_dim_lat)
-                  start(i) = 1
-                  edges(i) = ny
-               case (id_dim_z,id_dim_z1)
-                  start(i) = 1
-                  edges(i) = nz
                case (id_dim_time)
                   start(i) = self%itime
                   edges(i) = 1
+               case default
+                  start(i) = 1
+                  edges(i) = self%field_manager%dimension_length(used_field%source%dimensions(i))
             end select
          end do
 

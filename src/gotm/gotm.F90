@@ -106,6 +106,8 @@
 !  station description
    character(len=80)         :: name
    REALTYPE,target           :: latitude,longitude
+
+   type (type_field_manager),target :: field_manager_
 !
 !-----------------------------------------------------------------------
 
@@ -202,8 +204,10 @@
    LEVEL2 trim(name)
 
    LEVEL2 'initializing modules....'
-   call field_manager_init(nlev)
-   call output_manager_init()
+   call field_manager_%initialize(1,1,nlev,prepend_by_default=(/id_dim_lon,id_dim_lat/),append_by_default=(/id_dim_time/))
+   call field_manager_%register('lon','degrees_East','longitude',dimensions=(/id_dim_lon/),no_default_dimensions=.true.,data0d=longitude)
+   call field_manager_%register('lat','degrees_North','latitude',dimensions=(/id_dim_lat/),no_default_dimensions=.true.,data0d=latitude)
+   call output_manager_init(field_manager_)
    call init_input(nlev)
    call init_time(MinN,MaxN)
    call init_eqstate(namlst)
@@ -211,7 +215,7 @@
 
 !  From here - each init_? is responsible for opening and closing the
 !  namlst - unit.
-   call init_meanflow(namlst,'gotmmean.nml',nlev,latitude)
+   call init_meanflow(namlst,'gotmmean.nml',nlev,latitude,field_manager_)
    call init_tridiagonal(nlev)
    call updategrid(nlev,dt,zeta)
 
@@ -229,7 +233,7 @@
 !  Call do_input to make sure observed profiles are up-to-date.
    call do_input(julianday,secondsofday,nlev,z)
 
-   call init_turbulence(namlst,'gotmturb.nml',nlev)
+   call init_turbulence(namlst,'gotmturb.nml',nlev,field_manager_)
 
 !  initialise mean fields
    s = sprof
@@ -242,7 +246,7 @@
       call init_kpp(namlst,'kpp.nml',nlev,depth,h,gravity,rho_0)
    endif
 
-   call init_air_sea(namlst,latitude,longitude)
+   call init_air_sea(namlst,latitude,longitude,field_manager_)
 
    call init_output(title,nlev,latitude,longitude)
 
@@ -250,7 +254,7 @@
 #ifdef _FABM_
 
 !  Initialize the GOTM-FABM coupler from its configuration file.
-   call init_gotm_fabm(nlev,namlst,'gotm_fabm.nml',dt)
+   call init_gotm_fabm(nlev,namlst,'gotm_fabm.nml',dt,field_manager_)
 
 !  Link relevant GOTM data to FABM.
 !  This sets pointers, rather than copying data, and therefore needs to be done only once.
@@ -293,7 +297,7 @@
 
 #endif
 
-   if (list_fields) call field_manager_list()
+   if (list_fields) call field_manager_%list()
 
    LEVEL2 'done.'
    STDERR LINE
@@ -570,7 +574,7 @@
 
    call output_manager_clean()
 
-   call field_manager_clean()
+   call field_manager_%finalize()
 
    return
    end subroutine clean_up

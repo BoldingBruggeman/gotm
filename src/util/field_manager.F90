@@ -5,14 +5,13 @@ module field_manager
    implicit none
 
    ! Public subroutine and functions
-   public field_manager_init, field_manager_list, field_manager_clean, field_manager_register, field_manager_send_data, field_manager_select_for_output
+   public type_field_manager
 
    ! Public data types and variables
-   public type_field,first_field,nx,ny,nz
+   public type_field
 
    ! Public parameters
    public string_length,default_fill_value,default_minimum,default_maximum
-   public id_dim_lon,id_dim_lat,id_dim_z,id_dim_z1,id_dim_time
 
    private
 
@@ -20,17 +19,15 @@ module field_manager
    integer,parameter :: nmaxdims = 10
    integer,parameter :: rk = kind(_ONE_)
 
-   integer, parameter :: id_dim_lon  = 1
-   integer, parameter :: id_dim_lat  = 2
-   integer, parameter :: id_dim_z    = 3
-   integer, parameter :: id_dim_z1   = 4
-   integer, parameter :: id_dim_time = 5
+   integer, parameter, public :: id_dim_lon  = 1
+   integer, parameter, public :: id_dim_lat  = 2
+   integer, parameter, public :: id_dim_z    = 3
+   integer, parameter, public :: id_dim_z1   = 4
+   integer, parameter, public :: id_dim_time = 5
 
-   integer            :: nx
-   integer            :: ny
-   integer            :: nz
-
-   logical :: singleton_dims(nmaxdims)
+   integer, parameter, public :: status_not_registered       = 0
+   integer, parameter, public :: status_registered_no_data   = 1
+   integer, parameter, public :: status_registered_with_data = 2
 
    real(rk),parameter :: default_fill_value = -huge(_ONE_)
    real(rk),parameter :: default_minimum = default_fill_value + spacing(default_fill_value)
@@ -48,8 +45,9 @@ module field_manager
       real(rk)                     :: minimum        = default_minimum
       real(rk)                     :: maximum        = default_maximum
       logical                      :: in_output      = .false.
-      integer                      :: status         = 0 ! 1 = metadata provided, 2 = data provided
+      integer                      :: status         = status_not_registered
       integer,allocatable          :: dimensions(:)
+      integer,allocatable          :: extents(:)
       real(rk),pointer             :: data_0d        => null()
       real(rk),pointer             :: data_1d(:)     => null()
       real(rk),pointer             :: data_2d(:,:)   => null()
@@ -57,37 +55,63 @@ module field_manager
       type (type_field),pointer    :: next           => null()
    end type type_field
 
-   type (type_field),pointer :: first_field
+   type type_field_manager
+      integer            :: nx
+      integer            :: ny
+      integer            :: nz
 
-   interface field_manager_send_data
-      module procedure send_data_0d
-      module procedure send_data_1d
-      module procedure send_data_2d
-      module procedure send_data_3d
-      module procedure send_data_by_name_0d
-      module procedure send_data_by_name_1d
-   end interface
+      integer,allocatable :: prepend_dimensions(:)
+      integer,allocatable :: append_dimensions(:)
+
+      type (type_field),pointer :: first_field
+   contains
+      procedure :: initialize
+      procedure :: finalize
+      procedure :: register
+      procedure :: find
+      procedure :: list
+      procedure :: send_data_0d
+      procedure :: send_data_1d
+      procedure :: send_data_2d
+      procedure :: send_data_3d
+      procedure :: send_data_by_name_0d
+      procedure :: send_data_by_name_1d
+      procedure :: dimension_length
+      procedure :: select_for_output
+      generic :: send_data => send_data_0d,send_data_1d,send_data_2d,send_data_3d,send_data_by_name_0d,send_data_by_name_1d
+   end type type_field_manager
 
 contains
 
-   subroutine field_manager_init(nlev)
-      integer,intent(in) :: nlev
-      counter = 0
-      singleton_dims = .true.
-!KB      singleton_dims(id_dim_lon) = .false.
-!KB      singleton_dims(id_dim_lat) = .false.
-      singleton_dims(id_dim_z)   = .false.
-      singleton_dims(id_dim_z1)  = .false.
-      nx = 1
-      ny = 1
-      nz = nlev
-      nullify(first_field)
-   end subroutine
+   subroutine initialize(self,nx,ny,nz,prepend_by_default,append_by_default)
+      class (type_field_manager), intent(out) :: self
+      integer,                    intent(in)  :: nx,ny,nz
+      integer,optional,           intent(in)  :: prepend_by_default(:),append_by_default(:)
+      self%nx = nx
+      self%ny = ny
+      self%nz = nz
+      nullify(self%first_field)
+      if (present(prepend_by_default)) then
+         allocate(self%prepend_dimensions(size(prepend_by_default)))
+         self%prepend_dimensions(:) = prepend_by_default
+      else
+         allocate(self%prepend_dimensions(0))
+      end if
+      if (present(append_by_default)) then
+         allocate(self%append_dimensions(size(append_by_default)))
+         self%append_dimensions(:) = append_by_default
+      else
+         allocate(self%append_dimensions(0))
+      end if
+   end subroutine initialize
 
-   subroutine field_manager_list()
+   subroutine list(self)
+      class (type_field_manager), intent(in) :: self
+
       type (type_field), pointer :: field, next_field
+
       character(256) :: line
-      field => first_field
+      field => self%first_field
       write(line,'(A8,4x,A12,4x,A40)') 'name','unit',adjustl('long_name')
       write(*,*) trim(line)
       write(line,'(A68)') '----------------------------------------------------------------'
@@ -99,31 +123,86 @@ contains
          next_field => field%next
          field => next_field
       end do
-      stop 'field_manager_list()'
-   end subroutine field_manager_list
+      stop 'field_manager::list()'
+   end subroutine list
 
-   subroutine field_manager_clean()
+   subroutine finalize(self)
+      class (type_field_manager), intent(inout) :: self
+
       type (type_field), pointer :: field, next_field
-      field => first_field
+
+      field => self%first_field
       do while (associated(field))
          next_field => field%next
          deallocate(field)
          field => next_field
       end do
-   end subroutine
+   end subroutine finalize
 
-   function add_field(name, units, long_name, standard_name, fill_value, minimum, maximum, dimensions, used) result(field)
-      character(len=*), intent(in)           :: name, units, long_name
-      character(len=*), intent(in), optional :: standard_name
-      integer,optional, intent(in)           :: dimensions(:)
-      real(rk),         intent(in), optional :: fill_value, minimum, maximum
-      logical,          intent(out),optional :: used
+   integer function dimension_length(self, dimid)
+      class (type_field_manager), intent(in) :: self
+      integer,                    intent(in) :: dimid
+      select case (dimid)
+         case (id_dim_lon);         dimension_length = self%nx
+         case (id_dim_lat);         dimension_length = self%ny
+         case (id_dim_z,id_dim_z1); dimension_length = self%nz
+         case (id_dim_time);        dimension_length = 1
+         case default
+            call fatal_error('dimension_length','Unknown dimension id.')
+      end select
+   end function
+
+   function select_for_output(self,name) result(field)
+      class (type_field_manager),intent(inout) :: self
+      character(len=*), intent(in) :: name
       type (type_field), pointer :: field
 
+      field => self%find(name,create=.true.)
+      field%in_output = .true.
+   end function select_for_output
+
+   function find(self,name,create) result(field)
+      class (type_field_manager),intent(inout) :: self
+      character(len=*),intent(in) :: name
+      logical,optional,intent(in) :: create
+      type (type_field), pointer :: field
+
+      logical :: create_eff
+
+      field => self%first_field
+      do while (associated(field))
+         if (field%name==name) return
+         field => field%next
+      end do
+
+      create_eff = .false.
+      if (present(create)) create_eff = create
+      if (create) then
+         allocate(field)
+         field%name = name
+         field%next => self%first_field
+         self%first_field => field
+      end if
+   end function find
+
+   subroutine register(self, name, units, long_name, standard_name, fill_value, minimum, maximum, dimensions, data0d, data1d, data2d, data3d, no_default_dimensions, used)
+      class (type_field_manager),intent(inout) :: self
+      character(len=*),          intent(in)    :: name, units, long_name
+      character(len=*),optional, intent(in)    :: standard_name
+      real(rk),        optional, intent(in)    :: fill_value, minimum, maximum
+      integer,         optional, intent(in)    :: dimensions(:)
+      real(rk),        optional, target        :: data0d,data1d(:),data2d(:,:),data3d(:,:,:)
+      logical,         optional, intent(in)    :: no_default_dimensions
+      logical,         optional, intent(out)   :: used
+
+      type (type_field), pointer :: field
+      logical :: no_default_dimensions_
+      integer :: i,n
+
       ! Find existing field (possible created by select_for_output) or create new one.
-      field => find_field(name,create=.true.)
+      field => self%find(name,create=.true.)
       if (field%status>0) call fatal_error('add_field','Field with name "'//trim(name)//'" has already been registered.')
-      field%status = 1
+      field%status = status_registered_no_data
 
       ! Copy field configuration
       counter = counter + 1
@@ -135,185 +214,156 @@ contains
       if (present(fill_value)) field%fill_value = fill_value
       if (present(minimum)) field%minimum = minimum
       if (present(maximum)) field%maximum = maximum
-      if (present(dimensions)) then
-         allocate(field%dimensions(size(dimensions)+3))
-         field%dimensions(3:2+size(dimensions)) = dimensions
-!KBwrite(*,*) 'aa ',dimensions,size(field%dimensions)
+
+      no_default_dimensions_ = .false.
+      if (present(no_default_dimensions)) no_default_dimensions_ = no_default_dimensions
+      if (no_default_dimensions_) then
+         ! Use actual provided dimensions only (no prepend/append)
+         if (present(dimensions)) then
+            allocate(field%dimensions(size(dimensions)))
+            field%dimensions(:) = dimensions
+         else
+            allocate(field%dimensions(0))
+         end if
       else
-         allocate(field%dimensions(3))
+         ! Also prepend/append implicit dimensions
+         if (present(dimensions)) then
+            allocate(field%dimensions(size(self%prepend_dimensions)+size(dimensions)+size(self%append_dimensions)))
+            field%dimensions(size(self%prepend_dimensions)+1:size(self%prepend_dimensions)+size(dimensions)) = dimensions
+         else
+            allocate(field%dimensions(size(self%prepend_dimensions)+size(self%append_dimensions)))
+         end if
+         field%dimensions(:size(self%prepend_dimensions)) = self%prepend_dimensions
+         field%dimensions(size(field%dimensions)-size(self%append_dimensions)+1:) = self%append_dimensions
       end if
 
-      ! Add implicit dimensions
-      field%dimensions(1) = id_dim_lon
-      field%dimensions(2) = id_dim_lat
-      field%dimensions(size(field%dimensions)) = id_dim_time
-
-      ! Look over used fields and determine whether they include the current available field.
-      if (present(used)) used = field%in_output
-   end function add_field
-
-   function field_manager_select_for_output(name) result(field)
-      character(len=*), intent(in) :: name
-      type (type_field), pointer :: field
-
-      field => find_field(name,create=.true.)
-      field%in_output = .true.
-   end function field_manager_select_for_output
-
-   function find_field(name,create) result(field)
-      character(len=*),intent(in) :: name
-      logical,optional,intent(in) :: create
-      type (type_field), pointer :: field
-
-      logical :: create_eff
-
-      field => first_field
-      do while (associated(field))
-         if (field%name==name) return
-         field => field%next
-      end do
-
-      create_eff = .false.
-      if (present(create)) create_eff = create
-      if (create) then
-         allocate(field)
-         field%name = name
-         field%next => first_field
-         first_field => field
-      end if
-   end function find_field
-
-   subroutine field_manager_register(name, units, long_name, standard_name, fill_value, minimum, maximum, dimensions, data0d, data1d, data2d, data3d, used)
-      character(len=*),          intent(in)  :: name, units, long_name
-      character(len=*),optional, intent(in)  :: standard_name
-      real(rk),        optional, intent(in)  :: fill_value, minimum, maximum
-      integer,         optional, intent(in)  :: dimensions(:)
-      real(rk),        optional, target      :: data0d,data1d(:),data2d(:,:),data3d(:,:,:)
-      logical,         optional, intent(out) :: used
-
-      type (type_field), pointer :: field
-
-      field => add_field(name, units, long_name, standard_name, fill_value, minimum, maximum, dimensions, used=used)
-      if (present(data0d)) call send_data_0d(field,data0d)
-      if (present(data1d)) call send_data_1d(field,data1d)
-      if (present(data2d)) call send_data_2d(field,data2d)
-      if (present(data3d)) call send_data_3d(field,data3d)
-   end subroutine field_manager_register
-
-   subroutine send_data_by_name_0d(name, data)
-      character(len=*),intent(in) :: name
-      real(rk),        target     :: data
-
-      type (type_field), pointer :: field
-
-      field => find_field(name)
-      if (.not.associated(field)) call fatal_error('send_data_by_name_0d','Field "'//trim(name)//'" has not been registered.')
-      call send_data_0d(field,data)
-   end subroutine send_data_by_name_0d
-
-   subroutine send_data_by_name_1d(name, data)
-      character(len=*),intent(in) :: name
-      real(rk),        target     :: data(:)
-
-      type (type_field), pointer :: field
-
-      field => find_field(name)
-      if (.not.associated(field)) call fatal_error('send_data_by_name_1d','Field "'//trim(name)//'" has not been registered.')
-      call send_data_1d(field,data)
-   end subroutine send_data_by_name_1d
-
-   subroutine get_expected_extents(field,extents)
-      type (type_field),  intent(in)  :: field
-      integer,allocatable,intent(out) :: extents(:)
-
-      integer :: i,n
-
-      ! First count data dimensions (excludes time)
+      ! Determine extents of field (excluding singleton dimensions)
       n = 0
       do i=1,size(field%dimensions)
-         if (.not.singleton_dims(field%dimensions(i))) n = n + 1
+         if (self%dimension_length(field%dimensions(i))>1) n = n + 1
       end do
-
-      ! Allocate array to hold expected extents
-      allocate(extents(n))
-
-      ! Fill array with extents
+      allocate(field%extents(n))
       n = 0
       do i=1,size(field%dimensions)
-         if (.not.singleton_dims(field%dimensions(i))) then
+         if (self%dimension_length(field%dimensions(i))>1) then
             n = n + 1
-            select case (field%dimensions(i))
-               case (id_dim_lon); extents(n) = nx
-               case (id_dim_lat); extents(n) = ny
-               case (id_dim_z,id_dim_z1); extents(n) = nz
-               case default
-                  call fatal_error('get_expected_extents','Unknown dimension id.')
-            end select
+            field%extents(n) = self%dimension_length(field%dimensions(i))
          end if
       end do
 
-!KBwrite(*,*) 'bb ',extents
+      ! Note: the "in_output" flag can have been set by a call to select_for_output (typically from the output manager),
+      ! even before the actual variable is registered with the field manager.
+      if (present(used)) used = field%in_output
 
-   end subroutine get_expected_extents
+      if (present(data0d)) call self%send_data_0d(field,data0d)
+      if (present(data1d)) call self%send_data_1d(field,data1d)
+      if (present(data2d)) call self%send_data_2d(field,data2d)
+      if (present(data3d)) call self%send_data_3d(field,data3d)
+   end subroutine register
 
-   subroutine prepare_send_data(field,extents)
+   subroutine send_data_by_name_0d(self, name, data)
+      class (type_field_manager),intent(inout) :: self
+      character(len=*),          intent(in)    :: name
+      real(rk),target                          :: data
+
+      type (type_field), pointer :: field
+
+      field => self%find(name)
+      if (.not.associated(field)) call fatal_error('send_data_by_name_0d','Field "'//trim(name)//'" has not been registered.')
+      call self%send_data_0d(field,data)
+   end subroutine send_data_by_name_0d
+
+   subroutine send_data_by_name_1d(self, name, data)
+      class (type_field_manager),intent(inout) :: self
+      character(len=*),          intent(in)    :: name
+      real(rk),target                          :: data(:)
+
+      type (type_field), pointer :: field
+
+      field => self%find(name)
+      if (.not.associated(field)) call fatal_error('send_data_by_name_1d','Field "'//trim(name)//'" has not been registered.')
+      call self%send_data_1d(field,data)
+   end subroutine send_data_by_name_1d
+
+   subroutine filter_singeton_dimensions(extents_in,extents_out)
+      integer,intent(in)               :: extents_in(:)
+      integer,intent(out), allocatable :: extents_out(:)
+
+      integer :: i,n
+
+      n = count(extents_in>1)
+      allocate(extents_out(n))
+      n = 0
+      do i=1,size(extents_in)
+         if (extents_in(i)>1) then
+            n = n + 1
+            extents_out(n) = extents_in(i)
+         end if
+      end do
+   end subroutine filter_singeton_dimensions
+
+   subroutine check_sent_data(field,extents)
       type (type_field), intent(inout) :: field
       integer,           intent(in)    :: extents(:)
 
-      integer,allocatable              :: reqextents(:)
       integer                          :: i
       character(len=2)                 :: str1,str2,str3
+      integer,allocatable              :: filtered_extents(:)
 
-      ! Get expected array extents
-      call get_expected_extents(field,reqextents)
+      ! Filter out singeton dimensions
+      call filter_singeton_dimensions(extents,filtered_extents)
 
       ! Check array rank
-      if (size(extents)/=size(reqextents)) then
-         write (str1,'(i0)') size(extents)
-         write (str2,'(i0)') size(reqextents)
-         call fatal_error('prepare_send_data',trim(str1)//'D data provided for '//trim(field%name)//', but this field should have '//trim(str2)//' dimensions.')
+      if (size(filtered_extents)/=size(field%extents)) then
+         write (str1,'(i0)') size(filtered_extents)
+         write (str2,'(i0)') size(field%extents)
+         call fatal_error('check_sent_data',trim(str1)//'D data provided for '//trim(field%name)//', but this field should have '//trim(str2)//' dimensions.')
       end if
 
       ! Check array extents
-      do i=1,size(reqextents)
-         if (extents(i)/=reqextents(i)) then
+      do i=1,size(extents)
+         if (filtered_extents(i)/=field%extents(i)) then
             write (str1,'(i0)') i
-            write (str2,'(i0)') extents(i)
-            write (str3,'(i0)') reqextents(i)
-            call fatal_error('prepare_send_data', 'Field '//trim(field%name)//', dimension  '//trim(str1)//': &
+            write (str2,'(i0)') filtered_extents(i)
+            write (str3,'(i0)') field%extents(i)
+            call fatal_error('check_sent_data', 'Field '//trim(field%name)//', dimension  '//trim(str1)//': &
                &extents of provided data ('//trim(str2)//') does not match expected value '//trim(str3)//'.')
          end if
       end do
 
-      if (field%status>1) call fatal_error('prepare_send_data','Data for field "'//trim(field%name)//'" have already been provided.')
-      field%status = 2
-   end subroutine prepare_send_data
+      if (field%status==status_registered_with_data) call fatal_error('check_sent_data','Data for field "'//trim(field%name)//'" have already been provided.')
+      field%status = status_registered_with_data
+   end subroutine check_sent_data
 
-   subroutine send_data_0d(field, data)
-      type (type_field), intent(inout) :: field
-      real(rk),target                  :: data
-      call prepare_send_data(field,shape(data))
+   subroutine send_data_0d(self, field, data)
+      class (type_field_manager),intent(inout) :: self
+      type (type_field),         intent(inout) :: field
+      real(rk),target                          :: data
+      call check_sent_data(field,shape(data))
       field%data_0d => data
    end subroutine send_data_0d
 
-   subroutine send_data_1d(field, data)
-      type (type_field), intent(inout) :: field
-      real(rk),target                  :: data(:)
-      call prepare_send_data(field,shape(data))
+   subroutine send_data_1d(self, field, data)
+      class (type_field_manager),intent(inout) :: self
+      type (type_field),         intent(inout) :: field
+      real(rk),target                          :: data(:)
+      call check_sent_data(field,shape(data))
       field%data_1d => data
    end subroutine send_data_1d
 
-   subroutine send_data_2d(field, data)
-      type (type_field), intent(inout) :: field
-      real(rk),target                  :: data(:,:)
-      call prepare_send_data(field,shape(data))
+   subroutine send_data_2d(field_manager, field, data)
+      class (type_field_manager),intent(inout) :: field_manager
+      type (type_field),         intent(inout) :: field
+      real(rk),target                          :: data(:,:)
+      call check_sent_data(field,shape(data))
       field%data_2d => data
    end subroutine send_data_2d
 
-   subroutine send_data_3d(field, data)
-      type (type_field), intent(inout) :: field
-      real(rk),target                  :: data(:,:,:)
-      call prepare_send_data(field,shape(data))
+   subroutine send_data_3d(self, field, data)
+      class (type_field_manager),intent(inout) :: self
+      type (type_field),         intent(inout) :: field
+      real(rk),target                          :: data(:,:,:)
+      call check_sent_data(field,shape(data))
       field%data_3d => data
    end subroutine send_data_3d
 

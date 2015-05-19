@@ -157,7 +157,7 @@
 ! !IROUTINE: Initialise the air--sea interaction module \label{sec:init-air-sea}
 !
 ! !INTERFACE:
-   subroutine init_air_sea(namlst,lat,lon)
+   subroutine init_air_sea(namlst,lat,lon,field_manager)
 !
 ! !DESCRIPTION:
 !  This routine initialises the air-sea module by reading various variables
@@ -234,8 +234,9 @@
    IMPLICIT NONE
 !
 ! !INPUT PARAMETERS:
-   integer, intent(in)                 :: namlst
-   REALTYPE, intent(in)                :: lat,lon
+   integer, intent(in)                      :: namlst
+   REALTYPE, intent(in)                     :: lat,lon
+   class (type_field_manager),intent(inout) :: field_manager
 !
 ! !REVISION HISTORY:
 !  Original author(s): Karsten Bolding
@@ -277,31 +278,31 @@
 
 !  surface short-wave radiation and surface heat flux (W/m^2)
    I_0  = _ZERO_
-   call field_manager_register('I_0', 'W/m2', 'incoming short wave radiation', standard_name='', data0d=I_0)
+   call field_manager%register('I_0', 'W/m2', 'incoming short wave radiation', standard_name='', data0d=I_0)
    albedo = _ZERO_
-   call field_manager_register('albedo', '', 'albedo', standard_name='', data0d=albedo)
+   call field_manager%register('albedo', '', 'albedo', standard_name='', data0d=albedo)
    heat = _ZERO_
-   call field_manager_register('heat', 'W/m2', 'surface heat fluxes', standard_name='', data0d=heat)
+   call field_manager%register('heat', 'W/m2', 'surface heat fluxes', standard_name='', data0d=heat)
 
 !  surface stress components (Pa)
    tx = _ZERO_
-   call field_manager_register('tx', 'Pa', 'wind stress (x)', standard_name='', data0d=tx)
+   call field_manager%register('tx', 'Pa', 'wind stress (x)', standard_name='', data0d=tx)
    ty = _ZERO_
-   call field_manager_register('ty', 'Pa', 'wind stress (y)', standard_name='', data0d=ty)
+   call field_manager%register('ty', 'Pa', 'wind stress (y)', standard_name='', data0d=ty)
 
 !  precipitation and  evaporation (m/s)
    precip = _ZERO_
-   call field_manager_register('precip', 'm/s', 'precipitation', standard_name='', data0d=precip)
+   call field_manager%register('precip', 'm/s', 'precipitation', standard_name='', data0d=precip)
    evap   = _ZERO_
-   call field_manager_register('evap', 'm/s', 'evaporation', standard_name='', data0d=evap)
+   call field_manager%register('evap', 'm/s', 'evaporation', standard_name='', data0d=evap)
 
 !  sea surface temperature (degC) and sea surface salinity (psu)
    sst     = _ZERO_
-   call field_manager_register('sst', 'Celsius', 'sea surface temperature', standard_name='sea_surface_temperature', data0d=sst)
+   call field_manager%register('sst', 'Celsius', 'sea surface temperature', standard_name='sea_surface_temperature', data0d=sst)
    sst_obs = _ZERO_
-   call field_manager_register('sst_obs', 'Celsius', 'observed sea surface temperature', standard_name='sea_surface_temperature', data0d=sst_obs)
+   call field_manager%register('sst_obs', 'Celsius', 'observed sea surface temperature', standard_name='sea_surface_temperature', data0d=sst_obs)
    sss     = _ZERO_
-   call field_manager_register('sss', 'PSU', 'sea surface salinity', standard_name='sea_surface_salinity', data0d=sss)
+   call field_manager%register('sss', 'PSU', 'sea surface salinity', standard_name='sea_surface_salinity', data0d=sss)
 
 !  sea surface velocities (m/s)
    ssu = _ZERO_
@@ -309,7 +310,7 @@
 
 !  cloud cover
    cloud = _ZERO_
-   call field_manager_register('cloud', '', 'cloud cover', standard_name='', data0d=cloud)
+   call field_manager%register('cloud', '', 'cloud cover', standard_name='', data0d=cloud)
 
 #if 0
 !  relative humidity (various measures)
@@ -318,30 +319,30 @@
    tdew = _ZERO_
    select case (hum_method)
       case (1) ! relative humidity in % given
-         call field_manager_register('hum', '%', 'relative humidity', standard_name='', data0d=rh)
+         call field_manager%register('hum', '%', 'relative humidity', standard_name='', data0d=rh)
       case (2)  ! Specific humidity from wet bulb temperature
-         call field_manager_register('hum', 'Celsius', 'wet bulb temperature', standard_name='', data0d=twet)
+         call field_manager%register('hum', 'Celsius', 'wet bulb temperature', standard_name='', data0d=twet)
       case (3)  ! Specific humidity from dew point temperature
-         call field_manager_register('hum', 'Celsius', 'dew point temperature', standard_name='', data0d=tdew)
+         call field_manager%register('hum', 'Celsius', 'dew point temperature', standard_name='', data0d=tdew)
       case (4)  ! Specific humidity given
 !KB - check data source
-         call field_manager_register('hum', 'kg/kg', 'specific humidity', standard_name='', data0d=rh)
+         call field_manager%register('hum', 'kg/kg', 'specific humidity', standard_name='', data0d=rh)
    end select
 #endif
 
 !  air temperature
    airt = _ZERO_
-   call field_manager_register('airt', 'Celsius', '2m air temperature', standard_name='', data0d=airt)
+   call field_manager%register('airt', 'Celsius', '2m air temperature', standard_name='', data0d=airt)
 
 !  u and v components of wind at 10 m
    u10 = _ZERO_
-   call field_manager_register('u10', 'm/s', '10m wind (x)', standard_name='', data0d=u10)
+   call field_manager%register('u10', 'm/s', '10m wind (x)', standard_name='', data0d=u10)
    v10 = _ZERO_
-   call field_manager_register('v10', 'm/s', '10m wind (y)', standard_name='', data0d=v10)
+   call field_manager%register('v10', 'm/s', '10m wind (y)', standard_name='', data0d=v10)
 
 !  air pressure
    airp = _ZERO_
-   call field_manager_register('airp', 'Pa', 'air pressure', standard_name='', data0d=airp)
+   call field_manager%register('airp', 'Pa', 'air pressure', standard_name='', data0d=airp)
 
 !  initialize additional variables defined in airsea_variables module
    es   = _ZERO_
@@ -350,7 +351,7 @@
    qa   = _ZERO_
    L    = _ZERO_
    rhoa = _ZERO_
-   call field_manager_register('rhoa', 'kg/m3', 'air density', standard_name='', data0d=rhoa)
+   call field_manager%register('rhoa', 'kg/m3', 'air density', standard_name='', data0d=rhoa)
 
 !  Initialize feedbacks to drag and albedo from biogeochemistry
    bio_drag_scale = _ONE_
@@ -358,17 +359,17 @@
 
 !  initialize integrated freshwater and heat fluxes
    int_precip = _ZERO_
-   call field_manager_register('int_precip', 'm', 'integrated precipitation', standard_name='', data0d=int_precip)
+   call field_manager%register('int_precip', 'm', 'integrated precipitation', standard_name='', data0d=int_precip)
    int_evap  = _ZERO_
-   call field_manager_register('int_evap','m', 'integrated evaporation', standard_name='', data0d=int_evap)
+   call field_manager%register('int_evap','m', 'integrated evaporation', standard_name='', data0d=int_evap)
    int_fwf   = _ZERO_
-   call field_manager_register('int_fwf','m', 'integrated fresh water fluxes', standard_name='', data0d=int_fwf)
+   call field_manager%register('int_fwf','m', 'integrated fresh water fluxes', standard_name='', data0d=int_fwf)
    int_swr   = _ZERO_
-   call field_manager_register('int_swr','J/m2', 'integrated short wave radiation', standard_name='', data0d=int_swr)
+   call field_manager%register('int_swr','J/m2', 'integrated short wave radiation', standard_name='', data0d=int_swr)
    int_heat  = _ZERO_
-   call field_manager_register('int_heat','J/m2', 'integrated surface heat fluxes', standard_name='', data0d=int_heat)
+   call field_manager%register('int_heat','J/m2', 'integrated surface heat fluxes', standard_name='', data0d=int_heat)
    int_total = _ZERO_
-   call field_manager_register('int_total','J/m2', 'integrated total surface heat exchange', standard_name='', data0d=int_total)
+   call field_manager%register('int_total','J/m2', 'integrated total surface heat exchange', standard_name='', data0d=int_total)
 
 !  store provided longitude and latitude
    dlon = lon
@@ -416,14 +417,14 @@
    tdew = _ZERO_
    select case (hum_method)
       case (1) ! relative humidity in % given
-         call field_manager_register('hum', '%', 'relative humidity', standard_name='', data0d=rh)
+         call field_manager%register('hum', '%', 'relative humidity', standard_name='', data0d=rh)
       case (2)  ! Specific humidity from wet bulb temperature
-         call field_manager_register('hum', 'Celsius', 'wet bulb temperature', standard_name='', data0d=twet)
+         call field_manager%register('hum', 'Celsius', 'wet bulb temperature', standard_name='', data0d=twet)
       case (3)  ! Specific humidity from dew point temperature
-         call field_manager_register('hum', 'Celsius', 'dew point temperature', standard_name='', data0d=tdew)
+         call field_manager%register('hum', 'Celsius', 'dew point temperature', standard_name='', data0d=tdew)
       case (4)  ! Specific humidity given
 !KB - check data source
-         call field_manager_register('hum', 'kg/kg', 'specific humidity', standard_name='', data0d=rh)
+         call field_manager%register('hum', 'kg/kg', 'specific humidity', standard_name='', data0d=rh)
    end select
 
 !  The short wave radiation

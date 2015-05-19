@@ -18,9 +18,10 @@ module output_manager
 
 contains
 
-   subroutine output_manager_init()
+   subroutine output_manager_init(field_manager)
+      type (type_field_manager), target :: field_manager
       nullify(first_file)
-      call configure_from_yaml()
+      call configure_from_yaml(field_manager)
    end subroutine
 
    subroutine output_manager_clean()
@@ -50,10 +51,10 @@ contains
                used_field => file%first_field
                do while (associated(used_field))
                   select case (used_field%source%status)
-                     case (0)
+                     case (status_not_registered)
                         call output_manager_fatal_error('output_manager_save', 'File '//trim(file%path)//': &
                            requested field "'//trim(used_field%source%name)//'" has not been registered with field manager.')
-                     case (1)
+                     case (status_registered_no_data)
                         call output_manager_fatal_error('output_manager_save', 'File '//trim(file%path)//': &
                            data for requested field "'//trim(used_field%source%name)//'" have not been provided.')
                   end select
@@ -169,7 +170,8 @@ contains
       end do
    end subroutine output_manager_save
    
-   subroutine configure_from_yaml()
+   subroutine configure_from_yaml(field_manager)
+      type (type_field_manager), target :: field_manager
       character(len=yaml_error_length)   :: yaml_error
       class (type_node),         pointer :: node
       type (type_key_value_pair),pointer :: pair
@@ -188,7 +190,7 @@ contains
                if (pair%key=='') call output_manager_fatal_error('configure_from_yaml','Empty file path specified.')
                select type (dict=>pair%value)
                   class is (type_dictionary)
-                     call process_file(trim(pair%key),dict)
+                     call process_file(field_manager,trim(pair%key),dict)
                   class default
                      call output_manager_fatal_error('configure_from_yaml','Contents of '//trim(dict%path)//' must be a dictionary, not a single value.')
                end select
@@ -199,7 +201,8 @@ contains
       end select
    end subroutine configure_from_yaml
 
-   subroutine process_file(path,mapping)
+   subroutine process_file(field_manager,path,mapping)
+      type (type_field_manager), target :: field_manager
       character(len=*),       intent(in) :: path
       class (type_dictionary),intent(in) :: mapping
 
@@ -229,6 +232,7 @@ contains
       if (associated(config_error)) call output_manager_fatal_error('process_file',config_error%message)
       
       allocate(type_netcdf_file::file)
+      file%field_manager => field_manager
       file%path = path
       file%time_unit = time_unit
       file%time_step = time_step
@@ -277,7 +281,7 @@ contains
       else
          source_name = name
       end if
-      field%source => field_manager_select_for_output(source_name)
+      field%source => file%field_manager%select_for_output(source_name)
 
       field%next => file%first_field
       file%first_field => field

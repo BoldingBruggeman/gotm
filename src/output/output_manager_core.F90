@@ -37,6 +37,7 @@ module output_manager_core
    end type type_used_field
 
    type type_file
+      type (type_field_manager),pointer :: field_manager
       character(len=max_path)        :: path          = ''
       integer                        :: time_unit     = time_unit_none
       integer                        :: time_step     = 0
