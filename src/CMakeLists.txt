@@ -45,7 +45,7 @@ if(GOTM_EXTRA_OUTPUT)
   add_definitions(-DEXTRA_OUTPUT)
 endif()
 
-if(NOT GOTM_BUILD_LIBRARIES_ONLY)
+#KBif(NOT GOTM_BUILD_LIBRARIES_ONLY)
   option(GOTM_USE_NetCDF "Enable output in NetCDF format" ON)
   if(GOTM_USE_NetCDF)
     find_package(NetCDF REQUIRED)
@@ -57,7 +57,7 @@ if(NOT GOTM_BUILD_LIBRARIES_ONLY)
       add_compile_options("/libs:static")
     endif()
   endif(GOTM_USE_NetCDF)
-endif(NOT GOTM_BUILD_LIBRARIES_ONLY)
+#KBendif(NOT GOTM_BUILD_LIBRARIES_ONLY)
 
 # Global include directories
 include_directories(BEFORE "${CMAKE_BINARY_DIR}"
@@ -178,15 +178,19 @@ else()
   mark_as_advanced(FORCE FABM_PREFIX FABM_BASE)
 endif(GOTM_USE_FABM)
 
-if(NOT GOTM_BUILD_LIBRARIES_ONLY)
+#KBif(NOT GOTM_BUILD_LIBRARIES_ONLY)
 
-add_library(output_manager OBJECT
+add_library(output_manager
             output/output_manager.F90
             output/output_manager_core.F90
             output/netcdf_output.F90
            )
+target_link_libraries(output_manager)
 add_dependencies(output_manager util ${FABM_LIBRARIES})
 set_property(TARGET output_manager APPEND PROPERTY INCLUDE_DIRECTORIES "${FABM_INCLUDE_DIRS}")
+set_property(TARGET output_manager PROPERTY Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules)
+
+if(NOT GOTM_BUILD_LIBRARIES_ONLY)
 
 add_library(input OBJECT
             input/input.F90
@@ -286,12 +290,12 @@ add_executable(gotm_exe
                $<TARGET_OBJECTS:meanflow>
                $<TARGET_OBJECTS:observations>
                $<TARGET_OBJECTS:output>
-               $<TARGET_OBJECTS:output_manager>
+#               $<TARGET_OBJECTS:output_manager>
                $<TARGET_OBJECTS:input>
                ${EXTRA_SRCS}
               )
 set_property(TARGET gotm_exe PROPERTY OUTPUT_NAME "gotm")
-target_link_libraries(gotm_exe turbulence util)
+target_link_libraries(gotm_exe turbulence output_manager util)
 
 if(GOTM_USE_NetCDF)
   target_link_libraries(gotm_exe "${NetCDF_LIBRARIES}")
