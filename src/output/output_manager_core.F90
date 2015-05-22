@@ -3,11 +3,10 @@
 module output_manager_core
 
    use field_manager
-   use time, only: calendar_date
 
    implicit none
 
-   public type_output_field, type_file, write_time_string, output_manager_fatal_error
+   public type_output_field, type_file, write_time_string, output_manager_fatal_error, host, type_host
 
    private
 
@@ -26,6 +25,12 @@ module output_manager_core
 
    integer,parameter,public :: rk = kind(_ONE_)
 
+   type type_host
+   contains
+      procedure :: julian_day
+      procedure :: calendar_date
+   end type
+
    type type_output_field
       character(len=string_length)      :: output_name = ''
       type (type_field),pointer         :: source      => null()
@@ -36,7 +41,7 @@ module output_manager_core
    end type type_output_field
 
    type type_file
-      type (type_field_manager),pointer :: field_manager
+      type (type_field_manager),pointer :: field_manager => null()
       character(len=max_path)        :: path          = ''
       integer                        :: time_unit     = time_unit_none
       integer                        :: time_step     = 0
@@ -51,6 +56,8 @@ module output_manager_core
       procedure :: finalize
       procedure :: create_field
    end type type_file
+
+   class (type_host),pointer,save :: host => null()
 
 contains
 
@@ -76,6 +83,24 @@ contains
       class (type_file),intent(inout) :: file
    end subroutine
 
+   subroutine julian_day(self,yyyy,mm,dd,julian)
+      class (type_host), intent(in) :: self
+      integer, intent(in)  :: yyyy,mm,dd
+      integer, intent(out) :: julian
+      call output_manager_fatal_error('julian_day','The host of the output manager must implement julian_day subroutine in its type_host-derived class.')
+      julian = -1
+   end subroutine julian_day
+
+   subroutine calendar_date(self,julian,yyyy,mm,dd)
+      class (type_host), intent(in) :: self
+      integer, intent(in)  :: julian
+      integer, intent(out) :: yyyy,mm,dd
+      call output_manager_fatal_error('calendar_date','The host of the output manager must implement calendar_date subroutine in its type_host-derived class.')
+      yyyy = -1
+      mm = -1
+      dd = -1
+   end subroutine calendar_date
+
    subroutine write_time_string(jul,secs,timestr)
       integer,         intent(in)  :: jul,secs
       character(len=*),intent(out) :: timestr
@@ -86,7 +111,7 @@ contains
       min  = (secs-hh*3600)/60
       ss   = secs - 3600*hh - 60*min
 
-      call calendar_date(jul,yy,mm,dd)
+      call host%calendar_date(jul,yy,mm,dd)
 
       write(timestr,'(i4.4,a1,i2.2,a1,i2.2,1x,i2.2,a1,i2.2,a1,i2.2)')  &
                            yy,'-',mm,'-',dd,hh,':',min,':',ss

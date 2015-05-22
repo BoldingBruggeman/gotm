@@ -174,21 +174,20 @@ if(GOTM_USE_FABM)
   set_property(TARGET gotm_fabm PROPERTY FOLDER gotm)
   add_definitions(-D_FABM_)
   target_link_libraries(gotm_fabm ${FABM_LIBRARIES})
+
+  add_library(output_manager
+              output/output_manager.F90
+              output/output_manager_core.F90
+              output/netcdf_output.F90
+             )
+  target_link_libraries(output_manager util ${FABM_LIBRARIES})
+  set_property(TARGET output_manager PROPERTY Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules)
+  set_property(TARGET output_manager PROPERTY FOLDER gotm)
 else()
   mark_as_advanced(FORCE FABM_PREFIX FABM_BASE)
 endif(GOTM_USE_FABM)
 
 #KBif(NOT GOTM_BUILD_LIBRARIES_ONLY)
-
-add_library(output_manager
-            output/output_manager.F90
-            output/output_manager_core.F90
-            output/netcdf_output.F90
-           )
-target_link_libraries(output_manager)
-add_dependencies(output_manager util ${FABM_LIBRARIES})
-set_property(TARGET output_manager APPEND PROPERTY INCLUDE_DIRECTORIES "${FABM_INCLUDE_DIRS}")
-set_property(TARGET output_manager PROPERTY Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules)
 
 if(NOT GOTM_BUILD_LIBRARIES_ONLY)
 

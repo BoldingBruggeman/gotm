@@ -1,6 +1,5 @@
 module output_manager
 
-   use time, only: calendar_date,julian_day
    use field_manager
    use output_manager_core
    use netcdf_output
@@ -20,6 +19,7 @@ contains
 
    subroutine output_manager_init(field_manager)
       type (type_field_manager), target :: field_manager
+      if (.not.associated(host)) call output_manager_fatal_error('output_manager_init','The host of an output manager must set the host pointer before calling output_manager_init')
       nullify(first_file)
       call configure_from_yaml(field_manager)
    end subroutine
@@ -121,15 +121,15 @@ contains
                case (time_unit_day)
                   file%next_julian = file%next_julian + file%time_step
                case (time_unit_month)
-                  call calendar_date(julianday,yyyy,mm,dd)
+                  call host%calendar_date(julianday,yyyy,mm,dd)
                   mm = mm + file%time_step
                   yyyy = yyyy + (mm-1)/12
                   mm = mod(mm-1,12)+1
-                  call julian_day(yyyy,mm,dd,file%next_julian)
+                  call host%julian_day(yyyy,mm,dd,file%next_julian)
                case (time_unit_year)
-                  call calendar_date(julianday,yyyy,mm,dd)
+                  call host%calendar_date(julianday,yyyy,mm,dd)
                   yyyy = yyyy + file%time_step
-                  call julian_day(yyyy,mm,dd,file%next_julian)
+                  call host%julian_day(yyyy,mm,dd,file%next_julian)
             end select
 
             ! Reset time step counter   

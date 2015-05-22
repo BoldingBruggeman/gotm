@@ -34,6 +34,7 @@
 !
 ! !USES:
    use field_manager
+   use output_manager_core, only:output_manager_host=>host, type_output_manager_host=>type_host
    use output_manager
    use meanflow
    use input
@@ -106,6 +107,12 @@
 !  station description
    character(len=80)         :: name
    REALTYPE,target           :: latitude,longitude
+
+   type,extends(type_output_manager_host) :: type_gotm_host
+   contains
+      procedure :: julian_day => gotm_host_julian_day
+      procedure :: calendar_date => gotm_host_calendar_date
+   end type
 
    type (type_field_manager),target :: field_manager_
 !
@@ -207,6 +214,7 @@
    call field_manager_%initialize(1,1,nlev,prepend_by_default=(/id_dim_lon,id_dim_lat/),append_by_default=(/id_dim_time/))
    call field_manager_%register('lon','degrees_East','longitude',dimensions=(/id_dim_lon/),no_default_dimensions=.true.,data0d=longitude)
    call field_manager_%register('lat','degrees_North','latitude',dimensions=(/id_dim_lat/),no_default_dimensions=.true.,data0d=latitude)
+   allocate(type_gotm_host::output_manager_host)
    call output_manager_init(field_manager_)
    call init_input(nlev)
    call init_time(MinN,MaxN)
@@ -624,6 +632,20 @@
    end subroutine print_state
 !EOC
 #endif
+
+   subroutine gotm_host_julian_day(self,yyyy,mm,dd,julian)
+      class (type_gotm_host), intent(in) :: self
+      integer, intent(in)  :: yyyy,mm,dd
+      integer, intent(out) :: julian
+      call julian_day(yyyy,mm,dd,julian)
+   end subroutine
+
+   subroutine gotm_host_calendar_date(self,julian,yyyy,mm,dd)
+      class (type_gotm_host), intent(in) :: self
+      integer, intent(in)  :: julian
+      integer, intent(out) :: yyyy,mm,dd
+      call calendar_date(julian,yyyy,mm,dd)
+   end subroutine
 
 !-----------------------------------------------------------------------
 
