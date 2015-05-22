@@ -139,22 +139,15 @@ contains
          select type (output_field)
          class is (type_netcdf_field)
             if (output_field%itimedim/=-1) output_field%start(output_field%itimedim) = self%itime
-            select case (output_field%time_method)
-               case (time_method_instantaneous)
-                  ! Use source field directly
-                  if (associated(output_field%source%data_1d)) then
-                     iret = nf90_put_var(self%ncid,output_field%varid,output_field%source%data_1d,output_field%start,output_field%edges)
-                  else
-                     iret = nf90_put_var(self%ncid,output_field%varid,output_field%source%data_0d,output_field%start)
-                  end if
-               case default
-                  ! Use work field
-                  if (allocated(output_field%work_1d)) then
-                     iret = nf90_put_var(self%ncid,output_field%varid,output_field%work_1d,output_field%start,output_field%edges)
-                  else
-                     iret = nf90_put_var(self%ncid,output_field%varid,output_field%work_0d,output_field%start)
-                  end if
-            end select
+            if (associated(output_field%source%data_3d)) then
+               iret = nf90_put_var(self%ncid,output_field%varid,output_field%data_3d,output_field%start,output_field%edges)
+            elseif (associated(output_field%source%data_2d)) then
+               iret = nf90_put_var(self%ncid,output_field%varid,output_field%data_2d,output_field%start,output_field%edges)
+            elseif (associated(output_field%source%data_1d)) then
+               iret = nf90_put_var(self%ncid,output_field%varid,output_field%data_1d,output_field%start,output_field%edges)
+            else
+               iret = nf90_put_var(self%ncid,output_field%varid,output_field%data_0d,output_field%start)
+            end if
             call check_err(iret)
          end select
          output_field => output_field%next

@@ -35,8 +35,19 @@ module output_manager_core
       character(len=string_length)      :: output_name = ''
       type (type_field),pointer         :: source      => null()
       integer                           :: time_method = time_method_instantaneous
+
+      ! Work arrays (only allocated/used if storing non-instantaneous data)
       real(rk)                          :: work_0d
-      real(rk),allocatable,dimension(:) :: work_1d
+      real(rk),allocatable              :: work_1d(:)
+      real(rk),allocatable              :: work_2d(:,:)
+      real(rk),allocatable              :: work_3d(:,:,:)
+
+      ! Pointers to data to store (either pointing to instantaneous data, or to the above work arrays)
+      real(rk),pointer                  :: data_0d        => null()
+      real(rk),pointer                  :: data_1d(:)     => null()
+      real(rk),pointer                  :: data_2d(:,:)   => null()
+      real(rk),pointer                  :: data_3d(:,:,:) => null()
+
       class (type_output_field),pointer :: next        => null()
    end type type_output_field
 

@@ -71,11 +71,21 @@ contains
                ! Initialize fields based on time integrals
                output_field => file%first_field
                do while (associated(output_field))
+
+                  if (output_field%time_method/=time_method_instantaneous) then
+                     ! We are not storing the instantaneous value. Create a work array that will be stored instead.
+                     if (associated(output_field%source%data_1d)) then
+                        allocate(output_field%work_1d(size(output_field%source%data_1d)))
+                        output_field%data_1d => output_field%work_1d
+                     else
+                        output_field%data_0d => output_field%work_0d
+                     end if
+                  end if
+
                   select case (output_field%time_method)
                      case (time_method_mean)
                         ! Temporal mean: use initial value on first output.
                         if (associated(output_field%source%data_1d)) then
-                           allocate(output_field%work_1d(size(output_field%source%data_1d)))
                            output_field%work_1d = output_field%source%data_1d
                         else
                            output_field%work_0d = output_field%source%data_0d
@@ -83,7 +93,6 @@ contains
                      case (time_method_integrated)
                         ! Time integral: use zero at first output.
                         if (associated(output_field%source%data_1d)) then
-                           allocate(output_field%work_1d(size(output_field%source%data_1d)))
                            output_field%work_1d = 0.0_rk
                         else
                            output_field%work_0d = 0.0_rk
