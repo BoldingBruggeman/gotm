@@ -72,6 +72,12 @@ contains
                output_field => file%first_field
                do while (associated(output_field))
 
+                  ! Store instantaneous data by default.
+                  output_field%data_0d => output_field%source%data_0d
+                  output_field%data_1d => output_field%source%data_1d
+                  output_field%data_2d => output_field%source%data_2d
+                  output_field%data_3d => output_field%source%data_3d
+
                   if (output_field%time_method/=time_method_instantaneous) then
                      ! We are not storing the instantaneous value. Create a work array that will be stored instead.
                      if (associated(output_field%source%data_1d)) then
