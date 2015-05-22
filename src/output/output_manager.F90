@@ -98,22 +98,22 @@ contains
                      case (time_method_mean)
                         ! Temporal mean: use initial value on first output.
                         if (associated(output_field%source%data_3d)) then
-                           output_field%work_3d = output_field%source%data_3d
+                           output_field%work_3d(:,:,:) = output_field%source%data_3d
                         elseif (associated(output_field%source%data_2d)) then
-                           output_field%work_2d = output_field%source%data_2d
+                           output_field%work_2d(:,:) = output_field%source%data_2d
                         elseif (associated(output_field%source%data_1d)) then
-                           output_field%work_1d = output_field%source%data_1d
+                           output_field%work_1d(:) = output_field%source%data_1d
                         else
                            output_field%work_0d = output_field%source%data_0d
                         end if
                      case (time_method_integrated)
                         ! Time integral: use zero at first output.
                         if (associated(output_field%source%data_3d)) then
-                           output_field%work_3d = 0.0_rk
+                           output_field%work_3d(:,:,:) = 0.0_rk
                         elseif (associated(output_field%source%data_2d)) then
-                           output_field%work_2d = 0.0_rk
+                           output_field%work_2d(:,:) = 0.0_rk
                         elseif (associated(output_field%source%data_1d)) then
-                           output_field%work_1d = 0.0_rk
+                           output_field%work_1d(:) = 0.0_rk
                         else
                            output_field%work_0d = 0.0_rk
                         end if
@@ -127,11 +127,11 @@ contains
                   if (output_field%time_method==time_method_mean) then
                      ! This is a time-integrated field that needs to be incremented.
                      if (allocated(output_field%work_3d)) then
-                        output_field%work_3d = output_field%work_3d/file%n
+                        output_field%work_3d(:,:,:) = output_field%work_3d/file%n
                      elseif (allocated(output_field%work_2d)) then
-                        output_field%work_2d = output_field%work_2d/file%n
+                        output_field%work_2d(:,:) = output_field%work_2d/file%n
                      elseif (allocated(output_field%work_1d)) then
-                        output_field%work_1d = output_field%work_1d/file%n
+                        output_field%work_1d(:) = output_field%work_1d/file%n
                      else
                         output_field%work_0d = output_field%work_0d/file%n
                      end if
@@ -171,11 +171,11 @@ contains
             do while (associated(output_field))
                if (output_field%time_method==time_method_mean) then
                   if (allocated(output_field%work_3d)) then
-                     output_field%work_3d = 0.0_rk
+                     output_field%work_3d(:,:,:) = 0.0_rk
                   elseif (allocated(output_field%work_2d)) then
-                     output_field%work_2d = 0.0_rk
+                     output_field%work_2d(:,:) = 0.0_rk
                   elseif (allocated(output_field%work_1d)) then
-                     output_field%work_1d = 0.0_rk
+                     output_field%work_1d(:) = 0.0_rk
                   else
                      output_field%work_0d = 0.0_rk
                   end if
@@ -191,11 +191,11 @@ contains
                case (time_method_mean,time_method_integrated)
                   ! This is a time-integrated field that needs to be incremented.
                   if (allocated(output_field%work_3d)) then
-                     output_field%work_3d = output_field%work_3d + output_field%source%data_3d
+                     output_field%work_3d(:,:,:) = output_field%work_3d + output_field%source%data_3d
                   elseif (allocated(output_field%work_2d)) then
-                     output_field%work_2d = output_field%work_2d + output_field%source%data_2d
+                     output_field%work_2d(:,:) = output_field%work_2d + output_field%source%data_2d
                   elseif (allocated(output_field%work_1d)) then
-                     output_field%work_1d = output_field%work_1d + output_field%source%data_1d
+                     output_field%work_1d(:) = output_field%work_1d + output_field%source%data_1d
                   else
                      output_field%work_0d = output_field%work_0d + output_field%source%data_0d
                   end if
