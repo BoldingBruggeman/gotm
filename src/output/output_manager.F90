@@ -80,7 +80,13 @@ contains
 
                   if (output_field%time_method/=time_method_instantaneous) then
                      ! We are not storing the instantaneous value. Create a work array that will be stored instead.
-                     if (associated(output_field%source%data_1d)) then
+                     if (associated(output_field%source%data_3d)) then
+                        allocate(output_field%work_3d(size(output_field%source%data_3d,1),size(output_field%source%data_3d,2),size(output_field%source%data_3d,3)))
+                        output_field%data_3d => output_field%work_3d
+                     elseif (associated(output_field%source%data_2d)) then
+                        allocate(output_field%work_2d(size(output_field%source%data_2d,1),size(output_field%source%data_2d,2)))
+                        output_field%data_2d => output_field%work_2d
+                     elseif (associated(output_field%source%data_1d)) then
                         allocate(output_field%work_1d(size(output_field%source%data_1d)))
                         output_field%data_1d => output_field%work_1d
                      else
@@ -91,14 +97,22 @@ contains
                   select case (output_field%time_method)
                      case (time_method_mean)
                         ! Temporal mean: use initial value on first output.
-                        if (associated(output_field%source%data_1d)) then
+                        if (associated(output_field%source%data_3d)) then
+                           output_field%work_3d = output_field%source%data_3d
+                        elseif (associated(output_field%source%data_2d)) then
+                           output_field%work_2d = output_field%source%data_2d
+                        elseif (associated(output_field%source%data_1d)) then
                            output_field%work_1d = output_field%source%data_1d
                         else
                            output_field%work_0d = output_field%source%data_0d
                         end if
                      case (time_method_integrated)
                         ! Time integral: use zero at first output.
-                        if (associated(output_field%source%data_1d)) then
+                        if (associated(output_field%source%data_3d)) then
+                           output_field%work_3d = 0.0_rk
+                        elseif (associated(output_field%source%data_2d)) then
+                           output_field%work_2d = 0.0_rk
+                        elseif (associated(output_field%source%data_1d)) then
                            output_field%work_1d = 0.0_rk
                         else
                            output_field%work_0d = 0.0_rk
@@ -112,11 +126,13 @@ contains
                do while (associated(output_field))
                   if (output_field%time_method==time_method_mean) then
                      ! This is a time-integrated field that needs to be incremented.
-                     if (allocated(output_field%work_1d)) then
-                        ! 1D field
+                     if (allocated(output_field%work_3d)) then
+                        output_field%work_3d = output_field%work_3d/file%n
+                     elseif (allocated(output_field%work_2d)) then
+                        output_field%work_2d = output_field%work_2d/file%n
+                     elseif (allocated(output_field%work_1d)) then
                         output_field%work_1d = output_field%work_1d/file%n
                      else
-                        ! 0D field
                         output_field%work_0d = output_field%work_0d/file%n
                      end if
                   end if
@@ -154,7 +170,11 @@ contains
             output_field => file%first_field
             do while (associated(output_field))
                if (output_field%time_method==time_method_mean) then
-                  if (allocated(output_field%work_1d)) then
+                  if (allocated(output_field%work_3d)) then
+                     output_field%work_3d = 0.0_rk
+                  elseif (allocated(output_field%work_2d)) then
+                     output_field%work_2d = 0.0_rk
+                  elseif (allocated(output_field%work_1d)) then
                      output_field%work_1d = 0.0_rk
                   else
                      output_field%work_0d = 0.0_rk
@@ -170,11 +190,13 @@ contains
             select case (output_field%time_method)
                case (time_method_mean,time_method_integrated)
                   ! This is a time-integrated field that needs to be incremented.
-                  if (allocated(output_field%work_1d)) then
-                     ! 1D field
+                  if (allocated(output_field%work_3d)) then
+                     output_field%work_3d = output_field%work_3d + output_field%source%data_3d
+                  elseif (allocated(output_field%work_2d)) then
+                     output_field%work_2d = output_field%work_2d + output_field%source%data_2d
+                  elseif (allocated(output_field%work_1d)) then
                      output_field%work_1d = output_field%work_1d + output_field%source%data_1d
                   else
-                     ! 0D field
                      output_field%work_0d = output_field%work_0d + output_field%source%data_0d
                   end if
             end select
