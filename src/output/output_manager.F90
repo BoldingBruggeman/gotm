@@ -36,9 +36,9 @@ contains
    subroutine output_manager_save(julianday,secondsofday)
       integer,intent(in) :: julianday,secondsofday
 
-      class (type_file),      pointer :: file
-      type (type_used_field), pointer :: used_field
-      integer                         :: yyyy,mm,dd
+      class (type_file),         pointer :: file
+      class (type_output_field), pointer :: output_field
+      integer                            :: yyyy,mm,dd
 
       file => first_file
       do while (associated(file))
@@ -48,17 +48,17 @@ contains
             if (file%next_julian==-1) then
 
                ! First check whether all fields included in this file have been registered.
-               used_field => file%first_field
-               do while (associated(used_field))
-                  select case (used_field%source%status)
+               output_field => file%first_field
+               do while (associated(output_field))
+                  select case (output_field%source%status)
                      case (status_not_registered)
                         call output_manager_fatal_error('output_manager_save', 'File '//trim(file%path)//': &
-                           requested field "'//trim(used_field%source%name)//'" has not been registered with field manager.')
+                           requested field "'//trim(output_field%source%name)//'" has not been registered with field manager.')
                      case (status_registered_no_data)
                         call output_manager_fatal_error('output_manager_save', 'File '//trim(file%path)//': &
-                           data for requested field "'//trim(used_field%source%name)//'" have not been provided.')
+                           data for requested field "'//trim(output_field%source%name)//'" have not been provided.')
                   end select
-                  used_field => used_field%next
+                  output_field => output_field%next
                end do
 
                ! Create output file
@@ -69,43 +69,43 @@ contains
                file%next_seconds = secondsofday
 
                ! Initialize fields based on time integrals
-               used_field => file%first_field
-               do while (associated(used_field))
-                  select case (used_field%time_method)
+               output_field => file%first_field
+               do while (associated(output_field))
+                  select case (output_field%time_method)
                      case (time_method_mean)
                         ! Temporal mean: use initial value on first output.
-                        if (associated(used_field%source%data_1d)) then
-                           allocate(used_field%work_1d(size(used_field%source%data_1d)))
-                           used_field%work_1d = used_field%source%data_1d
+                        if (associated(output_field%source%data_1d)) then
+                           allocate(output_field%work_1d(size(output_field%source%data_1d)))
+                           output_field%work_1d = output_field%source%data_1d
                         else
-                           used_field%work_0d = used_field%source%data_0d
+                           output_field%work_0d = output_field%source%data_0d
                         end if
                      case (time_method_integrated)
                         ! Time integral: use zero at first output.
-                        if (associated(used_field%source%data_1d)) then
-                           allocate(used_field%work_1d(size(used_field%source%data_1d)))
-                           used_field%work_1d = 0.0_rk
+                        if (associated(output_field%source%data_1d)) then
+                           allocate(output_field%work_1d(size(output_field%source%data_1d)))
+                           output_field%work_1d = 0.0_rk
                         else
-                           used_field%work_0d = 0.0_rk
+                           output_field%work_0d = 0.0_rk
                         end if
                   end select
-                  used_field => used_field%next
+                  output_field => output_field%next
                end do
             else
                ! Perform temporal averaging where required.
-               used_field => file%first_field
-               do while (associated(used_field))
-                  if (used_field%time_method==time_method_mean) then
+               output_field => file%first_field
+               do while (associated(output_field))
+                  if (output_field%time_method==time_method_mean) then
                      ! This is a time-integrated field that needs to be incremented.
-                     if (allocated(used_field%work_1d)) then
+                     if (allocated(output_field%work_1d)) then
                         ! 1D field
-                        used_field%work_1d = used_field%work_1d/file%n
+                        output_field%work_1d = output_field%work_1d/file%n
                      else
                         ! 0D field
-                        used_field%work_0d = used_field%work_0d/file%n
+                        output_field%work_0d = output_field%work_0d/file%n
                      end if
                   end if
-                  used_field => used_field%next
+                  output_field => output_field%next
                end do
             end if
 
@@ -136,34 +136,34 @@ contains
             file%n = 0
 
             ! Zero out time-step averaged fields (start of new time step)
-            used_field => file%first_field
-            do while (associated(used_field))
-               if (used_field%time_method==time_method_mean) then
-                  if (allocated(used_field%work_1d)) then
-                     used_field%work_1d = 0.0_rk
+            output_field => file%first_field
+            do while (associated(output_field))
+               if (output_field%time_method==time_method_mean) then
+                  if (allocated(output_field%work_1d)) then
+                     output_field%work_1d = 0.0_rk
                   else
-                     used_field%work_0d = 0.0_rk
+                     output_field%work_0d = 0.0_rk
                   end if
                end if
-               used_field => used_field%next
+               output_field => output_field%next
             end do
          end if
 
          ! Increment time-integrated fields
-         used_field => file%first_field
-         do while (associated(used_field))
-            select case (used_field%time_method)
+         output_field => file%first_field
+         do while (associated(output_field))
+            select case (output_field%time_method)
                case (time_method_mean,time_method_integrated)
                   ! This is a time-integrated field that needs to be incremented.
-                  if (allocated(used_field%work_1d)) then
+                  if (allocated(output_field%work_1d)) then
                      ! 1D field
-                     used_field%work_1d = used_field%work_1d + used_field%source%data_1d
+                     output_field%work_1d = output_field%work_1d + output_field%source%data_1d
                   else
                      ! 0D field
-                     used_field%work_0d = used_field%work_0d + used_field%source%data_0d
+                     output_field%work_0d = output_field%work_0d + output_field%source%data_0d
                   end if
             end select
-            used_field => used_field%next
+            output_field => output_field%next
          end do
          file%n = file%n + 1
          file => file%next
@@ -262,12 +262,12 @@ contains
       character(len=*),       intent(in)          :: name
       class (type_dictionary),intent(in),optional :: mapping
 
-      character(len=string_length)   :: source_name = ''
-      type (type_error),     pointer :: config_error
-      type (type_used_field),pointer :: field
+      character(len=string_length)      :: source_name = ''
+      type (type_error),        pointer :: config_error
+      class (type_output_field),pointer :: output_field
 
-      allocate(field)
-      field%output_name = name
+      output_field => file%create_field()
+      output_field%output_name = name
       if (present(mapping)) then
          ! Interpret variable-specific configuration information
 
@@ -276,15 +276,15 @@ contains
          if (associated(config_error)) call output_manager_fatal_error('process_variable',config_error%message)
 
          ! Time method
-         field%time_method = mapping%get_integer('time_method',default=time_method_instantaneous,error=config_error)
+         output_field%time_method = mapping%get_integer('time_method',default=time_method_instantaneous,error=config_error)
          if (associated(config_error)) call output_manager_fatal_error('process_variable',config_error%message)
       else
          source_name = name
       end if
-      field%source => file%field_manager%select_for_output(source_name)
+      output_field%source => file%field_manager%select_for_output(source_name)
 
-      field%next => file%first_field
-      file%first_field => field
+      output_field%next => file%first_field
+      file%first_field => output_field
    end subroutine process_variable
 
 end module

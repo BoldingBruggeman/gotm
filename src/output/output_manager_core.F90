@@ -7,7 +7,7 @@ module output_manager_core
 
    implicit none
 
-   public type_used_field, type_file, write_time_string, output_manager_fatal_error
+   public type_output_field, type_file, write_time_string, output_manager_fatal_error
 
    private
 
@@ -26,15 +26,14 @@ module output_manager_core
 
    integer,parameter,public :: rk = kind(_ONE_)
 
-   type type_used_field
+   type type_output_field
       character(len=string_length)      :: output_name = ''
       type (type_field),pointer         :: source      => null()
       integer                           :: time_method = time_method_instantaneous
       real(rk)                          :: work_0d
       real(rk),allocatable,dimension(:) :: work_1d
-      integer                           :: ncid        = -1
-      type (type_used_field),pointer    :: next        => null()
-   end type type_used_field
+      class (type_output_field),pointer :: next        => null()
+   end type type_output_field
 
    type type_file
       type (type_field_manager),pointer :: field_manager
@@ -44,12 +43,13 @@ module output_manager_core
       integer                        :: n             = 0  ! Number of model time steps processed so far for next output
       integer                        :: next_julian   = -1
       integer                        :: next_seconds  = -1
-      type (type_used_field),pointer :: first_field   => null()
+      class (type_output_field),pointer :: first_field   => null()
       class (type_file),pointer      :: next          => null()
    contains
       procedure :: initialize
       procedure :: save
       procedure :: finalize
+      procedure :: create_field
    end type type_file
 
 contains
@@ -60,6 +60,12 @@ contains
       stop 'output_manager_core:initialize not implemented'
    end subroutine
 
+   function create_field(self) result(field)
+      class (type_file),intent(inout) :: self
+      class (type_output_field), pointer :: field
+      allocate(field)
+   end function create_field
+
    subroutine save(self,julianday,secondsofday)
       class (type_file),intent(inout) :: self
       integer,          intent(in)    :: julianday,secondsofday
@@ -69,7 +75,7 @@ contains
    subroutine finalize(file)
       class (type_file),intent(inout) :: file
    end subroutine
-   
+
    subroutine write_time_string(jul,secs,timestr)
       integer,         intent(in)  :: jul,secs
       character(len=*),intent(out) :: timestr
@@ -85,7 +91,7 @@ contains
       write(timestr,'(i4.4,a1,i2.2,a1,i2.2,1x,i2.2,a1,i2.2,a1,i2.2)')  &
                            yy,'-',mm,'-',dd,hh,':',min,':',ss
    end subroutine write_time_string
-   
+
    subroutine output_manager_fatal_error(location,error)
       character(len=*),intent(in) :: location,error
       
