@@ -255,7 +255,7 @@ contains
       if (associated(config_error)) call output_manager_fatal_error('process_file',config_error%message)
       select case (scalar%string)
          case ('second')
-            time_unit = time_unit_day
+            time_unit = time_unit_second
          case ('day')
             time_unit = time_unit_day
          case ('month')
