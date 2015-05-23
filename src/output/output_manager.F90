@@ -254,6 +254,8 @@ contains
       scalar => mapping%get_scalar('time_unit',required=.true.,error=config_error)
       if (associated(config_error)) call output_manager_fatal_error('process_file',config_error%message)
       select case (scalar%string)
+         case ('second')
+            time_unit = time_unit_day
          case ('day')
             time_unit = time_unit_day
          case ('month')
