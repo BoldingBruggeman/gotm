@@ -181,6 +181,7 @@ if(GOTM_USE_FABM)
               output/netcdf_output.F90
              )
   target_link_libraries(output_manager util ${FABM_LIBRARIES})
+  set_property(TARGET output_manager APPEND PROPERTY INCLUDE_DIRECTORIES "${FABM_INCLUDE_DIRS}")
   set_property(TARGET output_manager PROPERTY Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules)
   set_property(TARGET output_manager PROPERTY FOLDER gotm)
 else()
