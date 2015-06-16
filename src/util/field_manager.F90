@@ -55,6 +55,19 @@ module field_manager
       type (type_field),pointer    :: next           => null()
    end type type_field
 
+   type type_node
+      class (type_node),pointer :: first_child  => null()
+      class (type_node),pointer :: next_sibling => null()
+   end type
+
+   type,extends(type_node) :: type_field_node
+      type (type_field), pointer :: field => null()
+   end type
+
+   type,extends(type_node) :: type_category_node
+      character(len=string_length) :: name = ''
+   end type
+
    type type_field_manager
       integer            :: nx
       integer            :: ny
@@ -64,6 +77,7 @@ module field_manager
       integer,allocatable :: append_dimensions(:)
 
       type (type_field),pointer :: first_field
+      type (type_category_node) :: root
    contains
       procedure :: initialize
       procedure :: finalize
@@ -185,7 +199,7 @@ contains
       end if
    end function find
 
-   subroutine register(self, name, units, long_name, standard_name, fill_value, minimum, maximum, dimensions, data0d, data1d, data2d, data3d, no_default_dimensions, used)
+   subroutine register(self, name, units, long_name, standard_name, fill_value, minimum, maximum, dimensions, data0d, data1d, data2d, data3d, no_default_dimensions, category, used)
       class (type_field_manager),intent(inout) :: self
       character(len=*),          intent(in)    :: name, units, long_name
       character(len=*),optional, intent(in)    :: standard_name
@@ -193,6 +207,7 @@ contains
       integer,         optional, intent(in)    :: dimensions(:)
       real(rk),        optional, target        :: data0d,data1d(:),data2d(:,:),data3d(:,:,:)
       logical,         optional, intent(in)    :: no_default_dimensions
+      character(len=*),optional, intent(in)    :: category
       logical,         optional, intent(out)   :: used
 
       type (type_field), pointer :: field
@@ -251,6 +266,8 @@ contains
          end if
       end do
 
+      call add_field_to_tree(self,field,category)
+
       ! Note: the "in_output" flag can have been set by a call to select_for_output (typically from the output manager),
       ! even before the actual variable is registered with the field manager.
       if (present(used)) used = field%in_output
@@ -260,6 +277,98 @@ contains
       if (present(data2d)) call self%send_data_2d(field,data2d)
       if (present(data3d)) call self%send_data_3d(field,data3d)
    end subroutine register
+
+   subroutine add_field_to_tree(self,field,category)
+      class (type_field_manager),intent(inout),target :: self
+      type (type_field), target :: field
+      character(len=*),intent(in),optional :: category
+
+      type (type_category_node), pointer :: parent
+      class (type_node),         pointer :: node
+
+      ! Find parent node
+      parent => self%root
+      if (present(category)) parent => find_category(self,category,create=.true.)
+
+      ! Create node with field pointer and add to children of parent.
+      allocate(type_field_node::node)
+      select type (node)
+      class is (type_field_node)
+         node%field => field
+      end select
+      call add_to_category(parent,node)
+   end subroutine add_field_to_tree
+
+   function find_category(self,name,create) result(category)
+      class (type_field_manager),intent(inout),target :: self
+      character(len=*),          intent(in) :: name
+      logical,optional,          intent(in) :: create
+      type (type_category_node), pointer :: category
+
+      class (type_node),         pointer :: node
+      character(len=string_length)       :: remaining_path
+      integer                            :: istop
+      logical                            :: done
+      logical                            :: create_
+
+      category => self%root
+      do
+         istop = index(remaining_path,'/')-1
+         done = istop==-1
+         if (done) istop = len_trim(remaining_path)
+
+         ! First try to find existing parent
+         node => category%first_child
+         do while (associated(node))
+            select type (node)
+            class is (type_category_node)
+               if (node%name==remaining_path(:istop)) exit
+            end select
+            node => node%next_sibling
+         end do
+
+         ! If parent does not exist yet, create it if allowed to do so.
+         if (.not.associated(node)) then
+            create_ = .false.
+            if (present(create)) create_ = create
+            if (.not.create_) return
+
+            allocate(type_category_node::node)
+            select type (node)
+            class is (type_category_node)
+               node%name = remaining_path(:istop)
+            end select
+            call add_to_category(category,node)
+         end if
+
+         ! Update current path position.
+         select type (node)
+         class is (type_category_node)
+            category => node
+         end select
+
+         ! If no more path components, we're done. Otherwise, strip the component we processed and continue.
+         if (done) return
+         remaining_path = remaining_path(istop+1:)
+      end do
+   end function find_category
+
+   subroutine add_to_category(parent,node)
+      type (type_category_node), intent(inout) :: parent
+      class (type_node),         target        :: node
+
+      class (type_node),         pointer       :: previous_sibling
+
+      if (associated(parent%first_child)) then
+         previous_sibling => parent%first_child
+         do while (associated(previous_sibling%next_sibling))
+            previous_sibling => previous_sibling%next_sibling
+         end do
+         previous_sibling%next_sibling => node
+      else
+         parent%first_child => node
+      end if
+   end subroutine add_to_category
 
    subroutine send_data_by_name_0d(self, name, data)
       class (type_field_manager),intent(inout) :: self
