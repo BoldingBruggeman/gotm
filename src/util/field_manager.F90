@@ -137,8 +137,32 @@ contains
          next_field => field%next
          field => next_field
       end do
+
+      write (*,*) 'field tree:'
+      call list_node(self%root,1)
+
       stop 'field_manager::list()'
    end subroutine list
+
+
+   recursive subroutine list_node(category,depth)
+      type (type_category_node), intent(in) :: category
+      integer,                   intent(in) :: depth
+
+      class (type_node), pointer :: node
+
+      node => category%first_child
+      do while (associated(node))
+         select type (node)
+         class is (type_category_node)
+            write (*,*) repeat('  ',depth)//trim(node%name)
+            call list_node(node,depth+1)
+         class is (type_field_node)
+            write (*,*) repeat('  ',depth)//trim(node%field%name)
+         end select
+         node => node%next_sibling
+      end do
+   end subroutine list_node
 
    subroutine finalize(self)
       class (type_field_manager), intent(inout) :: self
@@ -312,44 +336,47 @@ contains
       logical                            :: create_
 
       category => self%root
+      remaining_path = name
       do
          istop = index(remaining_path,'/')-1
          done = istop==-1
          if (done) istop = len_trim(remaining_path)
 
-         ! First try to find existing parent
-         node => category%first_child
-         do while (associated(node))
+         if (istop>0) then
+            ! First try to find existing parent
+            node => category%first_child
+            do while (associated(node))
+               select type (node)
+               class is (type_category_node)
+                  if (node%name==remaining_path(:istop)) exit
+               end select
+               node => node%next_sibling
+            end do
+
+            ! If parent does not exist yet, create it if allowed to do so.
+            if (.not.associated(node)) then
+               create_ = .false.
+               if (present(create)) create_ = create
+               if (.not.create_) return
+
+               allocate(type_category_node::node)
+               select type (node)
+               class is (type_category_node)
+                  node%name = remaining_path(:istop)
+               end select
+               call add_to_category(category,node)
+            end if
+
+            ! Update current path position.
             select type (node)
             class is (type_category_node)
-               if (node%name==remaining_path(:istop)) exit
+               category => node
             end select
-            node => node%next_sibling
-         end do
-
-         ! If parent does not exist yet, create it if allowed to do so.
-         if (.not.associated(node)) then
-            create_ = .false.
-            if (present(create)) create_ = create
-            if (.not.create_) return
-
-            allocate(type_category_node::node)
-            select type (node)
-            class is (type_category_node)
-               node%name = remaining_path(:istop)
-            end select
-            call add_to_category(category,node)
          end if
-
-         ! Update current path position.
-         select type (node)
-         class is (type_category_node)
-            category => node
-         end select
 
          ! If no more path components, we're done. Otherwise, strip the component we processed and continue.
          if (done) return
-         remaining_path = remaining_path(istop+1:)
+         remaining_path = remaining_path(istop+2:)
       end do
    end function find_category
 
