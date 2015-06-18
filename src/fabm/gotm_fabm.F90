@@ -212,13 +212,13 @@
          do i=1,size(model%diagnostic_variables)
             call field_manager%register(model%diagnostic_variables(i)%name, model%diagnostic_variables(i)%units, &
                model%diagnostic_variables(i)%long_name, minimum=model%diagnostic_variables(i)%minimum, maximum=model%diagnostic_variables(i)%maximum, &
-               fill_value=model%diagnostic_variables(i)%missing_value, dimensions=(/id_dim_z/), used=in_output)
+               fill_value=model%diagnostic_variables(i)%missing_value, dimensions=(/id_dim_z/), category='fabm'//model%diagnostic_variables(i)%target%owner%get_path(), used=in_output)
             if (in_output) model%diagnostic_variables(i)%save = .true.
          end do
          do i=1,size(model%horizontal_diagnostic_variables)
             call field_manager%register(model%horizontal_diagnostic_variables(i)%name, model%horizontal_diagnostic_variables(i)%units, &
                model%horizontal_diagnostic_variables(i)%long_name, minimum=model%horizontal_diagnostic_variables(i)%minimum, maximum=model%horizontal_diagnostic_variables(i)%maximum, &
-               fill_value=model%horizontal_diagnostic_variables(i)%missing_value, used=in_output)
+               fill_value=model%horizontal_diagnostic_variables(i)%missing_value, category='fabm'//model%horizontal_diagnostic_variables(i)%target%owner%get_path(), used=in_output)
             if (in_output) model%horizontal_diagnostic_variables(i)%save = .true.
          end do
       end if
@@ -382,19 +382,19 @@
       do i=1,size(model%state_variables)
          call field_manager%register(model%state_variables(i)%name, model%state_variables(i)%units, &
             model%state_variables(i)%long_name, minimum=model%state_variables(i)%minimum, maximum=model%state_variables(i)%maximum, &
-            fill_value=model%state_variables(i)%missing_value, dimensions=(/id_dim_z/), data1d = cc(1:,i))
+            fill_value=model%state_variables(i)%missing_value, dimensions=(/id_dim_z/), data1d = cc(1:,i), category='fabm'//model%state_variables(i)%target%owner%get_path())
       end do
       do i=1,size(model%bottom_state_variables)
          call field_manager%register(model%bottom_state_variables(i)%name, model%bottom_state_variables(i)%units, &
             model%bottom_state_variables(i)%long_name, minimum=model%bottom_state_variables(i)%minimum, &
             maximum=model%bottom_state_variables(i)%maximum, fill_value=model%state_variables(i)%missing_value, &
-            data0d=cc(1,size(model%state_variables)+i))
+            data0d=cc(1,size(model%state_variables)+i), category='fabm'//model%state_variables(i)%target%owner%get_path())
       end do
       do i=1,size(model%surface_state_variables)
          call field_manager%register(model%surface_state_variables(i)%name, model%surface_state_variables(i)%units, &
             model%surface_state_variables(i)%long_name, minimum=model%surface_state_variables(i)%minimum, &
             maximum=model%surface_state_variables(i)%maximum, fill_value=model%surface_state_variables(i)%missing_value, &
-            data0d=cc(1,size(model%state_variables)+size(model%bottom_state_variables)+i))
+            data0d=cc(1,size(model%state_variables)+size(model%bottom_state_variables)+i), category='fabm'//model%state_variables(i)%target%owner%get_path())
       end do
 
       ! Send pointers to diagnostic data to output manager.
