@@ -45,8 +45,8 @@ if(GOTM_EXTRA_OUTPUT)
   add_definitions(-DEXTRA_OUTPUT)
 endif()
 
-option(GOTM_FLEXIBLE_OUTPUT "Use new output manager" ON)
-if(GOTM_FLEXIBLE_OUTPUT)
+option(GOTM_USE_FLEXIBLE_OUTPUT "Use new output manager" ON)
+if(GOTM_USE_FLEXIBLE_OUTPUT)
   add_definitions(-D_FLEXIBLE_OUTPUT_)
 endif()
 
@@ -180,7 +180,7 @@ if(GOTM_USE_FABM)
   add_definitions(-D_FABM_)
   target_link_libraries(gotm_fabm ${FABM_LIBRARIES})
 
-  if(GOTM_FLEXIBLE_OUTPUT)
+  if(GOTM_USE_FLEXIBLE_OUTPUT)
     add_library(output_manager
                 output/output_manager.F90
                 output/output_manager_core.F90
@@ -190,7 +190,7 @@ if(GOTM_USE_FABM)
     set_property(TARGET output_manager APPEND PROPERTY INCLUDE_DIRECTORIES "${FABM_INCLUDE_DIRS}")
     set_property(TARGET output_manager PROPERTY Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules)
     set_property(TARGET output_manager PROPERTY FOLDER gotm)
-  endif(GOTM_FLEXIBLE_OUTPUT)
+  endif(GOTM_USE_FLEXIBLE_OUTPUT)
 else()
   mark_as_advanced(FORCE FABM_PREFIX FABM_BASE)
 endif(GOTM_USE_FABM)
@@ -245,7 +245,7 @@ add_library(meanflow OBJECT
            )
 add_dependencies(meanflow util observations airsea)
 
-if(NOT GOTM_FLEXIBLE_OUTPUT)
+if(NOT GOTM_USE_FLEXIBLE_OUTPUT)
   add_library(output OBJECT
               output/asciiout.F90
               output/ncdfout.F90
@@ -259,7 +259,7 @@ add_library(gotm OBJECT
             gotm/gotm.F90
            )
 add_dependencies(gotm input util meanflow turbulence observations airsea)
-if(GOTM_FLEXIBLE_OUTPUT)
+if(GOTM_USE_FLEXIBLE_OUTPUT)
   add_dependencies(gotm output_manager)
 else()
   add_dependencies(gotm output)
@@ -287,7 +287,7 @@ if(GOTM_USE_SEAGRASS)
 endif()
 
 if(GOTM_USE_FABM)
-  if(GOTM_FLEXIBLE_OUTPUT)
+  if(GOTM_USE_FLEXIBLE_OUTPUT)
     add_library(gotm_fabm_io
                 fabm/gotm_fabm_input.F90
                )
@@ -317,7 +317,7 @@ add_executable(gotm_exe
               )
 set_property(TARGET gotm_exe PROPERTY OUTPUT_NAME "gotm")
 target_link_libraries(gotm_exe turbulence util)
-if(GOTM_FLEXIBLE_OUTPUT)
+if(GOTM_USE_FLEXIBLE_OUTPUT)
   target_link_libraries(gotm_exe output_manager)
 endif()
 
