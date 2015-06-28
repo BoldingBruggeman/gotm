@@ -570,7 +570,7 @@
    allocate(gamb(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (gamb)'
    gamb = _ZERO_
-   if (present(field_manager)) call field_manager%register('gamb', 'm2/s3', 'non-local  buoyancy flux', standard_name='??', dimensions=(/id_dim_z1/), data1d=gamh(1:nlev))
+   if (present(field_manager)) call field_manager%register('gamb', 'm2/s3', 'non-local  buoyancy flux', standard_name='??', dimensions=(/id_dim_z1/), data1d=gamb(1:nlev))
 
    allocate(gamh(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (gamh)'
