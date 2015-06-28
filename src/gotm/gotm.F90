@@ -166,7 +166,7 @@
                           out_fmt,out_dir,out_fn,nfirst,nsave,sync_out, &
                           diagnostics,mld_method,diff_k,Ri_crit,rad_corr
 #endif
-   logical          ::    list_fields=.true.
+   logical          ::    list_fields=.false.
    integer          ::    rc
 !
 !-----------------------------------------------------------------------
