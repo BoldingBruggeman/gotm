@@ -211,7 +211,7 @@ contains
       class (type_field_manager),intent(inout) :: self
       character(len=*),          intent(in)    :: name
       integer,                   intent(in)    :: output_level
-      type (type_category_node), pointer       :: category
+      class (type_category_node), pointer       :: category
 
       category => find_category(self,name,create=.true.)
       call activate(category)
@@ -366,7 +366,7 @@ contains
       type (type_field), target :: field
       character(len=*),intent(in),optional :: category
 
-      type (type_category_node), pointer :: parent
+      class (type_category_node),pointer :: parent
       class (type_node),         pointer :: node
 
       ! Find parent node
@@ -389,7 +389,7 @@ contains
       class (type_field_manager),intent(inout),target :: self
       character(len=*),          intent(in) :: name
       logical,optional,          intent(in) :: create
-      type (type_category_node), pointer :: category
+      class (type_category_node), pointer :: category
 
       class (type_node),         pointer :: node
       character(len=string_length)       :: remaining_path

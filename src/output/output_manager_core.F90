@@ -40,7 +40,7 @@ module output_manager_core
       character(len=string_length)         :: prefix = ''
       character(len=string_length)         :: postfix = ''
       integer                              :: output_level = output_level_default
-      type (type_category_node),   pointer :: source => null()
+      class (type_category_node),   pointer :: source => null()
       class (type_output_category),pointer :: next => null()
    end type
    
