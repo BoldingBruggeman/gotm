@@ -1,6 +1,6 @@
 module output_manager
 
-   use field_manager
+   use field_manager,type_base_node=>type_node
    use output_manager_core
    use netcdf_output
 
@@ -33,12 +33,50 @@ contains
       end do
    end subroutine
 
+   subroutine collect_from_categories(file)
+      class (type_file), intent(inout) :: file
+      class (type_output_category), pointer :: output_category
+      class (type_output_item),pointer  :: output_item
+      type (type_category_node) :: list
+      class (type_base_node), pointer :: field_node, next_field_node
+
+      output_category => file%first_category
+      do while (associated(output_category))
+         write (*,*) 'processing output category '//trim(output_category%name)
+         list%first_child => null()
+         call output_category%source%get_all_fields(list,output_category%output_level)
+         field_node => list%first_child
+         if (.not.associated(field_node)) call output_manager_fatal_error('collect_from_categories','No variables have been registered under output category "'//trim(output_category%name)//'".')
+         do while (associated(field_node))
+            select type (field_node)
+            class is (type_field_node)
+               write (*,*) '  adding '//trim(field_node%field%name)
+
+               ! Create output field, set relevant properties, and prepend to output field list.
+               output_item => file%create_field()
+               output_item%time_method = output_category%time_method
+               select type (output_item)
+               class is (type_output_field)
+                  output_item%source => field_node%field
+                  output_item%output_name = trim(output_category%prefix)//trim(field_node%field%name)//trim(output_category%postfix)
+                  output_item%next => file%first_field
+                  file%first_field => output_item
+               end select
+            end select
+            next_field_node => field_node%next_sibling
+            deallocate(field_node)
+            field_node => next_field_node
+         end do
+         output_category => output_category%next
+      end do
+   end subroutine collect_from_categories
+
    subroutine output_manager_save(julianday,secondsofday)
       integer,intent(in) :: julianday,secondsofday
 
-      class (type_file),         pointer :: file
-      class (type_output_field), pointer :: output_field
-      integer                            :: yyyy,mm,dd
+      class (type_file),            pointer :: file
+      class (type_output_field),    pointer :: output_field
+      integer                               :: yyyy,mm,dd
 
       file => first_file
       do while (associated(file))
@@ -46,6 +84,8 @@ contains
          if ((julianday==file%next_julian.and.secondsofday>=file%next_seconds) .or. julianday>file%next_julian) then
             ! Output required
             if (file%next_julian==-1) then
+               ! Add variables below selected categories to output
+               call collect_from_categories(file)
 
                ! First check whether all fields included in this file have been registered.
                output_field => file%first_field
@@ -247,8 +287,6 @@ contains
       class (type_scalar),pointer :: scalar
       integer                     :: time_unit, time_step
       class (type_file),pointer :: file
-      class (type_dictionary),pointer :: variables
-      type (type_key_value_pair),pointer :: pair
 
       ! Determine time unit
       scalar => mapping%get_scalar('time_unit',required=.true.,error=config_error)
@@ -263,8 +301,8 @@ contains
          case ('year')
             time_unit = time_unit_year
          case default
-            call output_manager_fatal_error('process_file','Invalid value "'//trim(scalar%string)//'" specified for time_unit of file "'//trim(path)//'". Valid options are day, month, year.')
-         end select
+            call output_manager_fatal_error('process_file','Invalid value "'//trim(scalar%string)//'" specified for time_unit of file "'//trim(path)//'". Valid options are second, day, month, year.')
+      end select
 
       ! Determine time step
       time_step = mapping%get_integer('time_step',error=config_error)
@@ -278,52 +316,114 @@ contains
       file%next => first_file
       first_file => file
 
-      ! Get dictionary with variables
-      variables => mapping%get_dictionary('variables',required=.true.,error=config_error)
-      if (associated(config_error)) call output_manager_fatal_error('process_file',config_error%message)
-      pair => variables%first
-      do while (associated(pair))
-         if (pair%key=='') call output_manager_fatal_error('process_file','File "'//trim(path)//'": empty variable name specified.')
-         select type (dict=>pair%value)
-            class is (type_dictionary)
-               call process_variable(file, trim(pair%key),dict)
-            class is (type_null)
-               call process_variable(file, trim(pair%key))
-            class default
-               call output_manager_fatal_error('process_file','Contents of '//trim(dict%path)//' must be a dictionary, not a single value.')
-         end select
-         pair => pair%next
-      end do
+      call process_group(file,mapping,time_method_instantaneous)
    end subroutine process_file
 
-   subroutine process_variable(file,name,mapping)
-      class (type_file),      intent(inout)       :: file
-      character(len=*),       intent(in)          :: name
-      class (type_dictionary),intent(in),optional :: mapping
+   recursive subroutine process_group(file,mapping,parent_time_method)
+      class (type_file),      intent(inout) :: file
+      class (type_dictionary),intent(in)    :: mapping
+      integer,                intent(in)    :: parent_time_method
 
-      character(len=string_length)      :: source_name = ''
-      type (type_error),        pointer :: config_error
-      class (type_output_field),pointer :: output_field
+      class (type_list),pointer :: list
+      type (type_list_item),pointer :: item
+      type (type_error),  pointer :: config_error
+      integer :: default_time_method
 
-      output_field => file%create_field()
-      output_field%output_name = name
-      if (present(mapping)) then
-         ! Interpret variable-specific configuration information
+      default_time_method = mapping%get_integer('time_method',default=parent_time_method,error=config_error)
 
-         ! Name of source variable (may differ from NetCDF variable name)
-         source_name = mapping%get_string('source',default=name,error=config_error)
-         if (associated(config_error)) call output_manager_fatal_error('process_variable',config_error%message)
-
-         ! Time method
-         output_field%time_method = mapping%get_integer('time_method',default=time_method_instantaneous,error=config_error)
-         if (associated(config_error)) call output_manager_fatal_error('process_variable',config_error%message)
-      else
-         source_name = name
+      ! Get list with groups [if any]
+      list => mapping%get_list('groups',required=.false.,error=config_error)
+      if (associated(config_error)) call output_manager_fatal_error('process_file',config_error%message)
+      if (associated(list)) then
+         item => list%first
+         do while (associated(item))
+            select type (node=>item%node)
+               class is (type_dictionary)
+                  call process_group(file, node, default_time_method)
+               class default
+                  call output_manager_fatal_error('process_file','Elements below '//trim(list%path)//' must be dictionaries.')
+            end select
+            item => item%next
+         end do
       end if
-      output_field%source => file%field_manager%select_for_output(source_name)
 
-      output_field%next => file%first_field
-      file%first_field => output_field
+      ! Get list with variables
+      list => mapping%get_list('variables',required=.true.,error=config_error)
+      if (associated(config_error)) call output_manager_fatal_error('process_file',config_error%message)
+      item => list%first
+      do while (associated(item))
+         select type (node=>item%node)
+            class is (type_dictionary)
+               call process_variable(file, node)
+            class default
+               call output_manager_fatal_error('process_file','Elements below '//trim(list%path)//' must be dictionaries.')
+         end select
+         item => item%next
+      end do
+   end subroutine process_group
+   
+   subroutine process_variable(file,mapping)
+      class (type_file),      intent(inout) :: file
+      class (type_dictionary),intent(in)    :: mapping
+
+      character(len=string_length) :: source_name
+      type (type_error),        pointer :: config_error
+      class (type_output_item),pointer  :: output_item
+      integer                           :: n
+
+      ! Name of source variable
+      source_name = mapping%get_string('source',error=config_error)
+      if (associated(config_error)) call output_manager_fatal_error('process_variable',config_error%message)
+
+      ! Determine whether to create an output field or an output category
+      n = len_trim(source_name)
+      if (source_name(n:n)=='*') then
+         allocate(type_output_category::output_item)
+      else
+         output_item => file%create_field()
+      end if
+
+      ! Time method
+      output_item%time_method = mapping%get_integer('time_method',default=time_method_instantaneous,error=config_error)
+      if (associated(config_error)) call output_manager_fatal_error('process_variable',config_error%message)
+
+      select type (output_item)
+      class is (type_output_field)
+         ! Select this variable for output in the field manager.
+         output_item%source => file%field_manager%select_for_output(source_name)
+
+         ! Name of output variable (may differ from source name)
+         output_item%output_name = mapping%get_string('name',default=source_name,error=config_error)
+         if (associated(config_error)) call output_manager_fatal_error('process_variable',config_error%message)
+
+         output_item%next => file%first_field
+         file%first_field => output_item
+      class is (type_output_category)
+         if (n==1) then
+            output_item%name = ''
+         else
+            output_item%name = source_name(:n-2)
+         end if
+
+         ! Prefix for output name
+         output_item%prefix = mapping%get_string('prefix',default='',error=config_error)
+         if (associated(config_error)) call output_manager_fatal_error('process_variable',config_error%message)
+
+         ! Postfix for output name
+         output_item%postfix = mapping%get_string('postfix',default='',error=config_error)
+         if (associated(config_error)) call output_manager_fatal_error('process_variable',config_error%message)
+
+         ! Output level
+         output_item%output_level = mapping%get_integer('output_level',default=output_level_default,error=config_error)
+         if (associated(config_error)) call output_manager_fatal_error('process_variable',config_error%message)
+
+         ! Select this category for output in the field manager.
+         output_item%source => file%field_manager%select_category_for_output(output_item%name,output_item%output_level)
+
+         output_item%next => file%first_category
+         file%first_category => output_item
+      end select
+
    end subroutine process_variable
 
 end module

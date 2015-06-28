@@ -8,7 +8,7 @@ module field_manager
    public type_field_manager
 
    ! Public data types and variables
-   public type_field
+   public type_node, type_field, type_field_node, type_category_node
 
    ! Public parameters
    public string_length,default_fill_value,default_minimum,default_maximum
@@ -29,6 +29,10 @@ module field_manager
    integer, parameter, public :: status_registered_no_data   = 1
    integer, parameter, public :: status_registered_with_data = 2
 
+   integer, parameter, public :: output_level_none    = 0
+   integer, parameter, public :: output_level_default = 1
+   integer, parameter, public :: output_level_debug   = 2
+
    real(rk),parameter :: default_fill_value = -huge(_ONE_)
    real(rk),parameter :: default_minimum = default_fill_value + spacing(default_fill_value)
    real(rk),parameter :: default_maximum = huge(_ONE_)
@@ -44,6 +48,7 @@ module field_manager
       real(rk)                     :: fill_value     = default_fill_value
       real(rk)                     :: minimum        = default_minimum
       real(rk)                     :: maximum        = default_maximum
+      integer                      :: output_level   = output_level_default
       logical                      :: in_output      = .false.
       integer                      :: status         = status_not_registered
       integer,allocatable          :: dimensions(:)
@@ -55,7 +60,7 @@ module field_manager
       type (type_field),pointer    :: next           => null()
    end type type_field
 
-   type type_node
+   type,abstract :: type_node
       class (type_node),pointer :: first_child  => null()
       class (type_node),pointer :: next_sibling => null()
    end type
@@ -66,6 +71,9 @@ module field_manager
 
    type,extends(type_node) :: type_category_node
       character(len=string_length) :: name = ''
+      integer                      :: output_level = output_level_none
+   contains
+      procedure :: get_all_fields
    end type
 
    type type_field_manager
@@ -92,6 +100,7 @@ module field_manager
       procedure :: send_data_by_name_1d
       procedure :: dimension_length
       procedure :: select_for_output
+      procedure :: select_category_for_output
       generic :: send_data => send_data_0d,send_data_1d,send_data_2d,send_data_3d,send_data_by_name_0d,send_data_by_name_1d
    end type type_field_manager
 
@@ -143,7 +152,6 @@ contains
 
       stop 'field_manager::list()'
    end subroutine list
-
 
    recursive subroutine list_node(category,depth)
       type (type_category_node), intent(in) :: category
@@ -199,6 +207,55 @@ contains
       field%in_output = .true.
    end function select_for_output
 
+   function select_category_for_output(self,name,output_level) result(category)
+      class (type_field_manager),intent(inout) :: self
+      character(len=*),          intent(in)    :: name
+      integer,                   intent(in)    :: output_level
+      type (type_category_node), pointer       :: category
+
+      category => find_category(self,name,create=.true.)
+      call activate(category)
+   contains
+      recursive subroutine activate(category)
+         type (type_category_node), intent(inout) :: category
+         class (type_node), pointer :: child
+         category%output_level = max(category%output_level,output_level)
+         child => category%first_child
+         do while (associated(child))
+            select type (child)
+            class is (type_category_node)
+               call activate(child)
+            end select
+            child => child%next_sibling
+         end do
+      end subroutine activate
+   end function select_category_for_output
+
+   recursive subroutine get_all_fields(self,list,output_level)
+      class (type_category_node), intent(inout) :: self
+      type (type_category_node),  intent(inout) :: list
+      integer,                    intent(in)    :: output_level
+      class (type_node), pointer :: child, newnode
+
+      child => self%first_child
+      do while (associated(child))
+         select type (child)
+         class is (type_category_node)
+            call get_all_fields(child,list,output_level)
+         class is (type_field_node)
+            if (child%field%output_level<=output_level) then
+               allocate(type_field_node::newnode)
+               select type (newnode)
+               class is (type_field_node)
+                  newnode%field => child%field
+               end select
+               call add_to_category(list,newnode)
+            end if
+         end select
+         child => child%next_sibling
+      end do
+   end subroutine get_all_fields
+
    function find(self,name,create) result(field)
       class (type_field_manager),intent(inout) :: self
       character(len=*),intent(in) :: name
@@ -223,7 +280,7 @@ contains
       end if
    end function find
 
-   subroutine register(self, name, units, long_name, standard_name, fill_value, minimum, maximum, dimensions, data0d, data1d, data2d, data3d, no_default_dimensions, category, used)
+   subroutine register(self, name, units, long_name, standard_name, fill_value, minimum, maximum, dimensions, data0d, data1d, data2d, data3d, no_default_dimensions, category, output_level, used)
       class (type_field_manager),intent(inout) :: self
       character(len=*),          intent(in)    :: name, units, long_name
       character(len=*),optional, intent(in)    :: standard_name
@@ -232,6 +289,7 @@ contains
       real(rk),        optional, target        :: data0d,data1d(:),data2d(:,:),data3d(:,:,:)
       logical,         optional, intent(in)    :: no_default_dimensions
       character(len=*),optional, intent(in)    :: category
+      integer,         optional, intent(in)    :: output_level
       logical,         optional, intent(out)   :: used
 
       type (type_field), pointer :: field
@@ -253,6 +311,7 @@ contains
       if (present(fill_value)) field%fill_value = fill_value
       if (present(minimum)) field%minimum = minimum
       if (present(maximum)) field%maximum = maximum
+      if (present(output_level)) field%output_level = output_level
 
       no_default_dimensions_ = .false.
       if (present(no_default_dimensions)) no_default_dimensions_ = no_default_dimensions
@@ -314,6 +373,9 @@ contains
       parent => self%root
       if (present(category)) parent => find_category(self,category,create=.true.)
 
+      ! If field has not been selected for output yet, do so if its output_level does not exceed that the parent category.
+      if (.not.field%in_output) field%in_output = field%output_level<=parent%output_level
+
       ! Create node with field pointer and add to children of parent.
       allocate(type_field_node::node)
       select type (node)
@@ -363,6 +425,7 @@ contains
                select type (node)
                class is (type_category_node)
                   node%name = remaining_path(:istop)
+                  node%output_level = category%output_level
                end select
                call add_to_category(category,node)
             end if

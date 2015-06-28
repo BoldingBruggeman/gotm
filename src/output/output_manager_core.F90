@@ -6,7 +6,7 @@ module output_manager_core
 
    implicit none
 
-   public type_output_field, type_file, write_time_string, output_manager_fatal_error, host, type_host
+   public type_output_item,type_output_category,type_output_field, type_file, write_time_string, output_manager_fatal_error, host, type_host
 
    private
 
@@ -31,10 +31,22 @@ module output_manager_core
       procedure :: calendar_date
    end type
 
-   type type_output_field
-      character(len=string_length)      :: output_name = ''
-      type (type_field),pointer         :: source      => null()
-      integer                           :: time_method = time_method_instantaneous
+   type type_output_item
+      integer :: time_method = time_method_instantaneous
+   end type
+
+   type,extends(type_output_item) ::  type_output_category
+      character(len=string_length)         :: name = ''
+      character(len=string_length)         :: prefix = ''
+      character(len=string_length)         :: postfix = ''
+      integer                              :: output_level = output_level_default
+      type (type_category_node),   pointer :: source => null()
+      class (type_output_category),pointer :: next => null()
+   end type
+   
+   type,extends(type_output_item) :: type_output_field
+      character(len=string_length) :: output_name = ''
+      type (type_field),pointer    :: source => null()
 
       ! Work arrays (only allocated/used if storing non-instantaneous data)
       real(rk)                          :: work_0d
@@ -48,7 +60,7 @@ module output_manager_core
       real(rk),pointer                  :: data_2d(:,:)   => null()
       real(rk),pointer                  :: data_3d(:,:,:) => null()
 
-      class (type_output_field),pointer :: next        => null()
+      class (type_output_field),pointer :: next => null()
    end type type_output_field
 
    type type_file
@@ -59,7 +71,8 @@ module output_manager_core
       integer                        :: n             = 0  ! Number of model time steps processed so far for next output
       integer                        :: next_julian   = -1
       integer                        :: next_seconds  = -1
-      class (type_output_field),pointer :: first_field   => null()
+      class (type_output_category),pointer :: first_category => null()
+      class (type_output_field),pointer    :: first_field    => null()
       class (type_file),pointer      :: next          => null()
    contains
       procedure :: initialize
