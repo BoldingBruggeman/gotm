@@ -258,27 +258,27 @@
    allocate(u(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (u)'
    u = _ZERO_
-   call field_manager%register('u', 'm/s', 'x-velocity', standard_name='??', dimensions=(/id_dim_z/), data1d=u(1:nlev))
+   call field_manager%register('u', 'm/s', 'x-velocity', standard_name='??', dimensions=(/id_dim_z/), data1d=u(1:nlev), category='velocities')
 
    allocate(uo(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (uo)'
    uo = _ZERO_
-   call field_manager%register('uo', 'm/s', 'x-velocity - old time step', standard_name='??', dimensions=(/id_dim_z/), data1d=uo(1:nlev))
+   call field_manager%register('uo', 'm/s', 'x-velocity - old time step', standard_name='??', dimensions=(/id_dim_z/), data1d=uo(1:nlev), category='velocities', output_level=output_level_debug)
 
    allocate(v(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (v)'
    v = _ZERO_
-   call field_manager%register('v', 'm/s', 'y-velocity', standard_name='??', dimensions=(/id_dim_z/), data1d=v(1:nlev))
+   call field_manager%register('v', 'm/s', 'y-velocity', standard_name='??', dimensions=(/id_dim_z/), data1d=v(1:nlev), category='velocities')
 
    allocate(vo(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (vo)'
    vo = _ZERO_
-   call field_manager%register('vo', 'm/s', 'y-velocity - old time step', standard_name='??', dimensions=(/id_dim_z/), data1d=vo(1:nlev))
+   call field_manager%register('vo', 'm/s', 'y-velocity - old time step', standard_name='??', dimensions=(/id_dim_z/), data1d=vo(1:nlev), category='velocities', output_level=output_level_debug)
 
    allocate(w(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (w)'
    w = _ZERO_
-   call field_manager%register('w', 'm/s', 'z-velocity', standard_name='??', dimensions=(/id_dim_z/), data1d=w(1:nlev))
+   call field_manager%register('w', 'm/s', 'z-velocity', standard_name='??', dimensions=(/id_dim_z/), data1d=w(1:nlev), category='velocities')
 
    allocate(fric(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (fric)'
