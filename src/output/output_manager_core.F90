@@ -19,9 +19,10 @@ module output_manager_core
 
    integer,parameter,public :: time_unit_none   = 0
    integer,parameter,public :: time_unit_second = 1
-   integer,parameter,public :: time_unit_day    = 2
-   integer,parameter,public :: time_unit_month  = 3
-   integer,parameter,public :: time_unit_year   = 4
+   integer,parameter,public :: time_unit_hour   = 2
+   integer,parameter,public :: time_unit_day    = 3
+   integer,parameter,public :: time_unit_month  = 4
+   integer,parameter,public :: time_unit_year   = 5
 
    integer,parameter,public :: rk = kind(_ONE_)
 

@@ -189,6 +189,10 @@ contains
                   file%next_seconds = file%next_seconds + file%time_step
                   file%next_julian = file%next_julian + file%next_seconds/86400
                   file%next_seconds = mod(file%next_seconds,86400)
+               case (time_unit_hour)
+                  file%next_seconds = file%next_seconds + file%time_step*3600
+                  file%next_julian = file%next_julian + file%next_seconds/86400
+                  file%next_seconds = mod(file%next_seconds,86400)
                case (time_unit_day)
                   file%next_julian = file%next_julian + file%time_step
                case (time_unit_month)
@@ -294,6 +298,8 @@ contains
       select case (scalar%string)
          case ('second')
             time_unit = time_unit_second
+         case ('hour')
+            time_unit = time_unit_hour
          case ('day')
             time_unit = time_unit_day
          case ('month')
