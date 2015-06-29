@@ -29,9 +29,10 @@ module field_manager
    integer, parameter, public :: status_registered_no_data   = 1
    integer, parameter, public :: status_registered_with_data = 2
 
-   integer, parameter, public :: output_level_none    = 0
-   integer, parameter, public :: output_level_default = 1
-   integer, parameter, public :: output_level_debug   = 2
+   integer, parameter, public :: output_level_none     = 0
+   integer, parameter, public :: output_level_required = 2
+   integer, parameter, public :: output_level_default  = 8
+   integer, parameter, public :: output_level_debug    = 32
 
    real(rk),parameter :: default_fill_value = -huge(_ONE_)
    real(rk),parameter :: default_minimum = default_fill_value + spacing(default_fill_value)
