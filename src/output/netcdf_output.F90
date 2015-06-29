@@ -48,7 +48,7 @@ contains
       character(len=19)                  :: time_string
       
       ! Create NetCDF file
-      iret = nf90_create(self%path,NF90_CLOBBER,self%ncid); call check_err(iret)
+      iret = nf90_create(trim(self%path)//'.nc',NF90_CLOBBER,self%ncid); call check_err(iret)
 
       ! Create dimensions [TODO: only those used in the current file]
       iret = nf90_def_dim(self%ncid, 'lon',  self%field_manager%dimension_length(id_dim_lon), dims_ids(id_dim_lon )); call check_err(iret)
