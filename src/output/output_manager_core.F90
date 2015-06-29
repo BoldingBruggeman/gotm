@@ -72,6 +72,14 @@ module output_manager_core
       integer                        :: n             = 0  ! Number of model time steps processed so far for next output
       integer                        :: next_julian   = -1
       integer                        :: next_seconds  = -1
+#if 0
+      character(len=19)              :: first_output_time = ''
+      character(len=19)              :: last_output_time  = ''
+      integer                        :: first_julian  = 0
+      integer                        :: first_seconds = 0
+      integer                        :: last_julian   = 0
+      integer                        :: last_seconds  = 0
+#endif
       class (type_output_category),pointer :: first_category => null()
       class (type_output_field),pointer    :: first_field    => null()
       class (type_file),pointer      :: next          => null()

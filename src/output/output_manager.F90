@@ -77,9 +77,16 @@ contains
       class (type_file),            pointer :: file
       class (type_output_field),    pointer :: output_field
       integer                               :: yyyy,mm,dd
+      logical                               :: output_time_window
 
       file => first_file
       do while (associated(file))
+#if 0
+         ! If in output time-window
+         output_time_window = (file%first_julian .eq. julianday .and. file%first_seconds .ge. secondsofday) .or. &
+                              (file%first_julian .gt. julianday .and. julianday .lt. file%last_julian)      .or. &
+                              (file%last_julian  .eq. julianday .and. file%last_seconds  .le. secondsofday)
+#endif
          ! Determine whether output is required
          if ((julianday==file%next_julian.and.secondsofday>=file%next_seconds) .or. julianday>file%next_julian) then
             ! Output required
