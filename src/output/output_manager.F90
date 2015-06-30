@@ -77,16 +77,16 @@ contains
       class (type_file),            pointer :: file
       class (type_output_field),    pointer :: output_field
       integer                               :: yyyy,mm,dd
-      logical                               :: output_time_window
+      logical                               :: in_window
 
       file => first_file
       do while (associated(file))
-#if 0
-         ! If in output time-window
-         output_time_window = (file%first_julian .eq. julianday .and. file%first_seconds .ge. secondsofday) .or. &
-                              (file%first_julian .gt. julianday .and. julianday .lt. file%last_julian)      .or. &
-                              (file%last_julian  .eq. julianday .and. file%last_seconds  .le. secondsofday)
-#endif
+
+         ! Continue only if in output time window.
+         in_window = ((julianday==file%first_julian.and.secondsofday>=file%first_seconds) .or. julianday>file%first_julian) &
+               .and. ((julianday==file%last_julian .and.secondsofday<=file%last_seconds)  .or. julianday<file%last_julian)
+         if (.not.in_window) cycle
+
          ! Determine whether output is required
          if ((julianday==file%next_julian.and.secondsofday>=file%next_seconds) .or. julianday>file%next_julian) then
             ! Output required
@@ -108,12 +108,18 @@ contains
                   output_field => output_field%next
                end do
 
+               ! If we do not have a start time yet, use current.
+               if (file%first_julian<=0) then
+                  file%first_julian = julianday
+                  file%first_seconds = secondsofday
+               end if
+
                ! Create output file
-               call file%initialize(julianday,secondsofday)
+               call file%initialize()
 
                ! Store current time step so next time step can be computed correctly.
-               file%next_julian = julianday
-               file%next_seconds = secondsofday
+               file%next_julian = file%first_julian
+               file%next_seconds = file%first_seconds
 
                ! Initialize fields based on time integrals
                output_field => file%first_field
@@ -296,38 +302,50 @@ contains
 
       type (type_error),  pointer :: config_error
       class (type_scalar),pointer :: scalar
-      integer                     :: time_unit, time_step
       class (type_file),pointer :: file
+      character(len=string_length) :: string
+
+      ! Create file object and prepend to list.
+      allocate(type_netcdf_file::file)
+      file%field_manager => field_manager
+      file%path = path
+      file%next => first_file
+      first_file => file
 
       ! Determine time unit
       scalar => mapping%get_scalar('time_unit',required=.true.,error=config_error)
       if (associated(config_error)) call output_manager_fatal_error('process_file',config_error%message)
       select case (scalar%string)
          case ('second')
-            time_unit = time_unit_second
+            file%time_unit = time_unit_second
          case ('hour')
-            time_unit = time_unit_hour
+            file%time_unit = time_unit_hour
          case ('day')
-            time_unit = time_unit_day
+            file%time_unit = time_unit_day
          case ('month')
-            time_unit = time_unit_month
+            file%time_unit = time_unit_month
          case ('year')
-            time_unit = time_unit_year
+            file%time_unit = time_unit_year
          case default
             call output_manager_fatal_error('process_file','Invalid value "'//trim(scalar%string)//'" specified for time_unit of file "'//trim(path)//'". Valid options are second, day, month, year.')
       end select
 
       ! Determine time step
-      time_step = mapping%get_integer('time_step',error=config_error)
+      file%time_step = mapping%get_integer('time_step',error=config_error)
       if (associated(config_error)) call output_manager_fatal_error('process_file',config_error%message)
-      
-      allocate(type_netcdf_file::file)
-      file%field_manager => field_manager
-      file%path = path
-      file%time_unit = time_unit
-      file%time_step = time_step
-      file%next => first_file
-      first_file => file
+
+      ! Determine time of first output (default to start of simulation)
+      string = mapping%get_string('time_start',default='',error=config_error)
+      if (associated(config_error)) call output_manager_fatal_error('process_file',config_error%message)
+      if (string/='') call read_time_string(trim(string),file%first_julian,file%first_seconds)
+
+      ! Determine time of last output (default: save until simulation ends)
+      string = mapping%get_string('time_stop',default='',error=config_error)
+      if (associated(config_error)) call output_manager_fatal_error('process_file',config_error%message)
+      if (string/='') call read_time_string(trim(string),file%last_julian,file%last_seconds)
+
+      ! Allow specific file implementation to parse additional settings from yaml file.
+      call file%configure(mapping)
 
       call process_group(file,mapping,time_method_instantaneous)
    end subroutine process_file
@@ -341,6 +359,7 @@ contains
       type (type_list_item),pointer :: item
       type (type_error),  pointer :: config_error
       integer :: default_time_method
+      type (type_key_value_pair),pointer :: pair
 
       default_time_method = mapping%get_integer('time_method',default=parent_time_method,error=config_error)
 
@@ -373,6 +392,13 @@ contains
          end select
          item => item%next
       end do
+
+      ! Raise error if any keys are left unused.
+      pair => mapping%first
+      do while (associated(pair))
+         if (.not.pair%accessed) call output_manager_fatal_error('process_group','key '//trim(pair%key)//' below '//trim(mapping%path)//' not recognized.')
+         pair => pair%next
+      end do
    end subroutine process_group
    
    subroutine process_variable(file,mapping)
@@ -383,6 +409,7 @@ contains
       type (type_error),        pointer :: config_error
       class (type_output_item),pointer  :: output_item
       integer                           :: n
+      type (type_key_value_pair),pointer :: pair
 
       ! Name of source variable
       source_name = mapping%get_string('source',error=config_error)
@@ -436,6 +463,13 @@ contains
          output_item%next => file%first_category
          file%first_category => output_item
       end select
+
+      ! Raise error if any keys are left unused.
+      pair => mapping%first
+      do while (associated(pair))
+         if (.not.pair%accessed) call output_manager_fatal_error('process_group','key '//trim(pair%key)//' below '//trim(mapping%path)//' not recognized.')
+         pair => pair%next
+      end do
 
    end subroutine process_variable
 

@@ -3,6 +3,7 @@ module netcdf_output
    use field_manager
    use output_manager_core
    use netcdf
+   use fabm_config_types, only: type_dictionary, type_error
 
    implicit none
 
@@ -17,10 +18,11 @@ module netcdf_output
       integer :: itime         = 0  ! Next time index in NetCDF file
       integer :: ncid          = -1 ! NetCDF identifier for file
       integer :: time_id       = -1 ! Identifier of time dimension
-      integer :: first_julian  = 0
-      integer :: first_seconds = 0
+      integer :: reference_julian  = -1
+      integer :: reference_seconds = -1
       integer :: sync_interval = 1  ! Number of output time step between calls to nf90_sync (-1 to disbale syncing)
    contains
+      procedure :: configure
       procedure :: initialize
       procedure :: save
       procedure :: finalize
@@ -36,9 +38,21 @@ module netcdf_output
 
 contains
 
-   subroutine initialize(self,julianday,secondsofday)
+   subroutine configure(self,mapping)
       class (type_netcdf_file),intent(inout) :: self
-      integer,                 intent(in)    :: julianday,secondsofday
+      class (type_dictionary), intent(in)    :: mapping
+
+      type (type_error),  pointer :: config_error
+      character(len=string_length) :: string
+
+      ! Determine time of first output (default to start of simulation)
+      string = mapping%get_string('time_reference',default='',error=config_error)
+      if (associated(config_error)) call output_manager_fatal_error('process_file',config_error%message)
+      if (string/='') call read_time_string(trim(string),self%reference_julian,self%reference_seconds)
+   end subroutine
+
+   subroutine initialize(self)
+      class (type_netcdf_file),intent(inout) :: self
 
       class (type_output_field), pointer :: output_field
       integer                            :: iret
@@ -46,7 +60,13 @@ contains
       integer                            :: i
       integer                            :: yyyy,mm,dd
       character(len=19)                  :: time_string
-      
+
+      ! If no reference time is configured (to be used in time units), use time of first output.
+      if (self%reference_julian==-1) then
+         self%reference_julian  = self%first_julian
+         self%reference_seconds = self%first_seconds
+      end if
+
       ! Create NetCDF file
       iret = nf90_create(trim(self%path)//'.nc',NF90_CLOBBER,self%ncid); call check_err(iret)
 
@@ -58,10 +78,8 @@ contains
       iret = nf90_def_dim(self%ncid, 'time', NF90_UNLIMITED, dims_ids(id_dim_time)); call check_err(iret)
 
       ! Create coordinates
-      self%first_julian = julianday
-      self%first_seconds = secondsofday
       iret = nf90_def_var(self%ncid,'time',NF90_REAL,(/dims_ids(id_dim_time)/),self%time_id); call check_err(iret)
-      call write_time_string(julianday,secondsofday,time_string)
+      call write_time_string(self%reference_julian,self%reference_seconds,time_string)
       iret = nf90_put_att(self%ncid,self%time_id,'units','seconds since '//trim(time_string)); call check_err(iret)
 
       ! Create variables
@@ -131,7 +149,7 @@ contains
       self%itime = self%itime + 1
 
       ! Store time coordinate
-      temp_time = (julianday-self%first_julian)*real(86400,ncrk) + secondsofday-self%first_seconds
+      temp_time = (julianday-self%reference_julian)*real(86400,ncrk) + secondsofday-self%reference_seconds
       iret = nf90_put_var(self%ncid,self%time_id,temp_time,(/self%itime/)); call check_err(iret)
       
       output_field => self%first_field

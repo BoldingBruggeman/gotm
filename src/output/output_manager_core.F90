@@ -3,10 +3,11 @@
 module output_manager_core
 
    use field_manager
+   use fabm_config_types,only: type_dictionary
 
    implicit none
 
-   public type_output_item,type_output_category,type_output_field, type_file, write_time_string, output_manager_fatal_error, host, type_host
+   public type_output_item,type_output_category,type_output_field, type_file, write_time_string, read_time_string, output_manager_fatal_error, host, type_host
 
    private
 
@@ -72,18 +73,15 @@ module output_manager_core
       integer                        :: n             = 0  ! Number of model time steps processed so far for next output
       integer                        :: next_julian   = -1
       integer                        :: next_seconds  = -1
-#if 0
-      character(len=19)              :: first_output_time = ''
-      character(len=19)              :: last_output_time  = ''
-      integer                        :: first_julian  = 0
-      integer                        :: first_seconds = 0
-      integer                        :: last_julian   = 0
+      integer                        :: first_julian  = -1
+      integer                        :: first_seconds = -1
+      integer                        :: last_julian   = huge(1)
       integer                        :: last_seconds  = 0
-#endif
       class (type_output_category),pointer :: first_category => null()
       class (type_output_field),pointer    :: first_field    => null()
       class (type_file),pointer      :: next          => null()
    contains
+      procedure :: configure
       procedure :: initialize
       procedure :: save
       procedure :: finalize
@@ -94,9 +92,13 @@ module output_manager_core
 
 contains
 
-   subroutine initialize(self,julianday,secondsofday)
+   subroutine configure(self,mapping)
+      class (type_file),      intent(inout) :: self
+      class (type_dictionary),intent(in)    :: mapping
+   end subroutine
+   
+   subroutine initialize(self)
       class (type_file),intent(inout) :: self
-      integer,          intent(in)    :: julianday,secondsofday
       stop 'output_manager_core:initialize not implemented'
    end subroutine
 
@@ -149,6 +151,19 @@ contains
       write(timestr,'(i4.4,a1,i2.2,a1,i2.2,1x,i2.2,a1,i2.2,a1,i2.2)')  &
                            yy,'-',mm,'-',dd,hh,':',min,':',ss
    end subroutine write_time_string
+
+   subroutine read_time_string(timestr,jul,secs)
+      character(len=19)    :: timestr
+      integer, intent(out) :: jul,secs
+
+      character :: c1,c2,c3,c4
+      integer   :: yy,mm,dd,hh,min,ss
+
+      read(timestr,'(i4,a1,i2,a1,i2,1x,i2,a1,i2,a1,i2)')  &
+                          yy,c1,mm,c2,dd,hh,c3,min,c4,ss
+      call host%julian_day(yy,mm,dd,jul)
+      secs = 3600*hh + 60*min + ss
+   end subroutine read_time_string
 
    subroutine output_manager_fatal_error(location,error)
       character(len=*),intent(in) :: location,error
