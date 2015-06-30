@@ -85,7 +85,7 @@ contains
          ! Continue only if in output time window.
          in_window = ((julianday==file%first_julian.and.secondsofday>=file%first_seconds) .or. julianday>file%first_julian) &
                .and. ((julianday==file%last_julian .and.secondsofday<=file%last_seconds)  .or. julianday<file%last_julian)
-         if (.not.in_window) cycle
+         if (in_window) then
 
          ! Determine whether output is required
          if ((julianday==file%next_julian.and.secondsofday>=file%next_seconds) .or. julianday>file%next_julian) then
@@ -260,6 +260,9 @@ contains
             output_field => output_field%next
          end do
          file%n = file%n + 1
+
+         end if ! in output time window
+
          file => file%next
       end do
    end subroutine output_manager_save
