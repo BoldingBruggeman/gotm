@@ -262,6 +262,7 @@ end subroutine init_ice_winton
    REALTYPE, intent(out)     :: bmelt ! accumulated bottom melting energy (J/m^2)
 !
 ! !LOCAL VARIABLES:
+   REALTYPE        :: ta,ta_k
    REALTYPE        :: tfw   ! seawater freezing temperature (deg-C)
    REALTYPE        :: fb    ! heat flux from ocean to ice bottom (W/m^2)
    REALTYPE        :: I     ! solar absorbed by upper ice (W/m^2)
@@ -282,6 +283,14 @@ end subroutine init_ice_winton
 !-----------------------------------------------------------------------
 !BOC
    !LEVEL0 'do_ice_winton'
+
+   if (airt .lt. 100*_ONE_) then
+      ta_k = airt + kelvin
+      ta   = airt
+   else
+      ta   = airt - kelvin
+      ta_k = airt
+   end if
 
    ! preconditions
 
@@ -341,24 +350,24 @@ end subroutine init_ice_winton
       endif
 !
 !     Recalculate surface fluxes for sea ice conditions
-      call humidity(hum_method,rh,airp,ts,airt)
+      call humidity(hum_method,rh,airp,ts,ta)
       call back_radiation(back_radiation_method, &
-                          lat,ts+kelvin,airt+kelvin,cloud,qb)
+                          lat,ts+kelvin,ta_k,cloud,qb)
       call airsea_fluxes(fluxes_method,.false.,.false., &
-                         ts,airt,u10,v10,precip,evap,tx,ty,qe,qh)
+                         ts,ta,u10,v10,precip,evap,tx,ty,qe,qh)
       heat = (qb+qe+qh)
       if (ts .lt. -100*_ONE_) then
          STDERR 'heat ice =', heat
          STDERR 'heat components =', qb,qe,qh
-         STDERR 'heat inputs =', rh, airp, ts, airt, lat, kelvin, cloud, u10, v10, precip, evap
+         STDERR 'heat inputs =', rh, airp, ts, ta, lat, kelvin, cloud, u10, v10, precip, evap
       endif
 !
 !     Calculate derivative of heat with respect to sea ice surface temp.
-      call humidity(hum_method,rh,airp,ts-T_RANGE_DHDT,airt)
+      call humidity(hum_method,rh,airp,ts-T_RANGE_DHDT,ta)
       call back_radiation(back_radiation_method, &
-                          lat,ts+kelvin-T_RANGE_DHDT,airt+kelvin,cloud,qbm)
+                          lat,ts+kelvin-T_RANGE_DHDT,ta_k,cloud,qbm)
       call airsea_fluxes(fluxes_method,.false.,.false., &
-                         ts-T_RANGE_DHDT,airt,u10,v10,precip,evap,tx,ty,qem,qhm)
+                         ts-T_RANGE_DHDT,ta,u10,v10,precip,evap,tx,ty,qem,qhm)
       B = (-heat + (qbm+qem+qhm))/T_RANGE_DHDT
       if (ts .lt. -100*_ONE_) then
          STDERR 'd(-heat)/d(ts) =', B
