@@ -47,7 +47,7 @@ contains
 
       ! Determine time of first output (default to start of simulation)
       string = mapping%get_string('time_reference',default='',error=config_error)
-      if (associated(config_error)) call output_manager_fatal_error('process_file',config_error%message)
+      if (associated(config_error)) call host%fatal_error('process_file',config_error%message)
       if (string/='') call read_time_string(trim(string),self%reference_julian,self%reference_seconds)
    end subroutine
 
@@ -185,7 +185,7 @@ contains
 
    subroutine check_err(iret)
       integer,intent(in) :: iret
-      if (iret/=NF90_NOERR) call output_manager_fatal_error('check_err',nf90_strerror(iret))
+      if (iret/=NF90_NOERR) call host%fatal_error('check_err',nf90_strerror(iret))
    end subroutine
 
 end module netcdf_output

@@ -19,7 +19,10 @@ contains
 
    subroutine output_manager_init(field_manager)
       type (type_field_manager), target :: field_manager
-      if (.not.associated(host)) call output_manager_fatal_error('output_manager_init','The host of an output manager must set the host pointer before calling output_manager_init')
+      if (.not.associated(host)) then
+         write (*,*) 'output_manager_init: the host of an output manager must set the host pointer before calling output_manager_init'
+         stop 1
+      end if
       nullify(first_file)
       call configure_from_yaml(field_manager)
    end subroutine
@@ -46,7 +49,7 @@ contains
          list%first_child => null()
          call output_category%source%get_all_fields(list,output_category%output_level)
          field_node => list%first_child
-         if (.not.associated(field_node)) call output_manager_fatal_error('collect_from_categories','No variables have been registered under output category "'//trim(output_category%name)//'".')
+         if (.not.associated(field_node)) call host%fatal_error('collect_from_categories','No variables have been registered under output category "'//trim(output_category%name)//'".')
          do while (associated(field_node))
             select type (field_node)
             class is (type_field_node)
@@ -99,10 +102,10 @@ contains
                do while (associated(output_field))
                   select case (output_field%source%status)
                      case (status_not_registered)
-                        call output_manager_fatal_error('output_manager_save', 'File '//trim(file%path)//': &
+                        call host%fatal_error('output_manager_save', 'File '//trim(file%path)//': &
                            requested field "'//trim(output_field%source%name)//'" has not been registered with field manager.')
                      case (status_registered_no_data)
-                        call output_manager_fatal_error('output_manager_save', 'File '//trim(file%path)//': &
+                        call host%fatal_error('output_manager_save', 'File '//trim(file%path)//': &
                            data for requested field "'//trim(output_field%source%name)//'" have not been provided.')
                   end select
                   output_field => output_field%next
@@ -274,27 +277,38 @@ contains
       type (type_key_value_pair),pointer :: pair
       character(len=max_path)            :: file_path
       integer,parameter                  :: yaml_unit = 100
+      logical                            :: file_exists
+
+      inquire(file='output.yaml',exist=file_exists)
+      if (.not.file_exists) then
+         call host%log_message('WARNING: no output files will be written because output.yaml is not present.')
+         return
+      end if
 
       ! Parse YAML.
       node => yaml_parse('output.yaml',yaml_unit,yaml_error)
-      if (yaml_error/='') call output_manager_fatal_error('configure_from_yaml',trim(yaml_error))
+      if (yaml_error/='') call host%fatal_error('configure_from_yaml',trim(yaml_error))
+      if (.not.associated(node)) then
+         call host%log_message('WARNING: no output files will be written because output.yaml is empty.')
+         return
+      end if
 
       ! Process root-level dictionary.
       select type (node)
          class is (type_dictionary)
             pair => node%first
             do while (associated(pair))
-               if (pair%key=='') call output_manager_fatal_error('configure_from_yaml','Empty file path specified.')
+               if (pair%key=='') call host%fatal_error('configure_from_yaml','Empty file path specified.')
                select type (dict=>pair%value)
                   class is (type_dictionary)
                      call process_file(field_manager,trim(pair%key),dict)
                   class default
-                     call output_manager_fatal_error('configure_from_yaml','Contents of '//trim(dict%path)//' must be a dictionary, not a single value.')
+                     call host%fatal_error('configure_from_yaml','Contents of '//trim(dict%path)//' must be a dictionary, not a single value.')
                end select
                pair => pair%next
             end do
          class default
-            call output_manager_fatal_error('configure_from_yaml','input.yaml must contain a dictionary with (variable name : information) pairs.')
+            call host%fatal_error('configure_from_yaml','output.yaml must contain a dictionary with (variable name : information) pairs.')
       end select
    end subroutine configure_from_yaml
 
@@ -317,7 +331,7 @@ contains
 
       ! Determine time unit
       scalar => mapping%get_scalar('time_unit',required=.true.,error=config_error)
-      if (associated(config_error)) call output_manager_fatal_error('process_file',config_error%message)
+      if (associated(config_error)) call host%fatal_error('process_file',config_error%message)
       select case (scalar%string)
          case ('second')
             file%time_unit = time_unit_second
@@ -330,21 +344,21 @@ contains
          case ('year')
             file%time_unit = time_unit_year
          case default
-            call output_manager_fatal_error('process_file','Invalid value "'//trim(scalar%string)//'" specified for time_unit of file "'//trim(path)//'". Valid options are second, day, month, year.')
+            call host%fatal_error('process_file','Invalid value "'//trim(scalar%string)//'" specified for time_unit of file "'//trim(path)//'". Valid options are second, day, month, year.')
       end select
 
       ! Determine time step
       file%time_step = mapping%get_integer('time_step',error=config_error)
-      if (associated(config_error)) call output_manager_fatal_error('process_file',config_error%message)
+      if (associated(config_error)) call host%fatal_error('process_file',config_error%message)
 
       ! Determine time of first output (default to start of simulation)
       string = mapping%get_string('time_start',default='',error=config_error)
-      if (associated(config_error)) call output_manager_fatal_error('process_file',config_error%message)
+      if (associated(config_error)) call host%fatal_error('process_file',config_error%message)
       if (string/='') call read_time_string(trim(string),file%first_julian,file%first_seconds)
 
       ! Determine time of last output (default: save until simulation ends)
       string = mapping%get_string('time_stop',default='',error=config_error)
-      if (associated(config_error)) call output_manager_fatal_error('process_file',config_error%message)
+      if (associated(config_error)) call host%fatal_error('process_file',config_error%message)
       if (string/='') call read_time_string(trim(string),file%last_julian,file%last_seconds)
 
       ! Allow specific file implementation to parse additional settings from yaml file.
@@ -368,7 +382,7 @@ contains
 
       ! Get list with groups [if any]
       list => mapping%get_list('groups',required=.false.,error=config_error)
-      if (associated(config_error)) call output_manager_fatal_error('process_file',config_error%message)
+      if (associated(config_error)) call host%fatal_error('process_file',config_error%message)
       if (associated(list)) then
          item => list%first
          do while (associated(item))
@@ -376,7 +390,7 @@ contains
                class is (type_dictionary)
                   call process_group(file, node, default_time_method)
                class default
-                  call output_manager_fatal_error('process_file','Elements below '//trim(list%path)//' must be dictionaries.')
+                  call host%fatal_error('process_file','Elements below '//trim(list%path)//' must be dictionaries.')
             end select
             item => item%next
          end do
@@ -384,14 +398,14 @@ contains
 
       ! Get list with variables
       list => mapping%get_list('variables',required=.true.,error=config_error)
-      if (associated(config_error)) call output_manager_fatal_error('process_file',config_error%message)
+      if (associated(config_error)) call host%fatal_error('process_file',config_error%message)
       item => list%first
       do while (associated(item))
          select type (node=>item%node)
             class is (type_dictionary)
                call process_variable(file, node)
             class default
-               call output_manager_fatal_error('process_file','Elements below '//trim(list%path)//' must be dictionaries.')
+               call host%fatal_error('process_file','Elements below '//trim(list%path)//' must be dictionaries.')
          end select
          item => item%next
       end do
@@ -399,7 +413,7 @@ contains
       ! Raise error if any keys are left unused.
       pair => mapping%first
       do while (associated(pair))
-         if (.not.pair%accessed) call output_manager_fatal_error('process_group','key '//trim(pair%key)//' below '//trim(mapping%path)//' not recognized.')
+         if (.not.pair%accessed) call host%fatal_error('process_group','key '//trim(pair%key)//' below '//trim(mapping%path)//' not recognized.')
          pair => pair%next
       end do
    end subroutine process_group
@@ -416,7 +430,7 @@ contains
 
       ! Name of source variable
       source_name = mapping%get_string('source',error=config_error)
-      if (associated(config_error)) call output_manager_fatal_error('process_variable',config_error%message)
+      if (associated(config_error)) call host%fatal_error('process_variable',config_error%message)
 
       ! Determine whether to create an output field or an output category
       n = len_trim(source_name)
@@ -428,7 +442,7 @@ contains
 
       ! Time method
       output_item%time_method = mapping%get_integer('time_method',default=time_method_instantaneous,error=config_error)
-      if (associated(config_error)) call output_manager_fatal_error('process_variable',config_error%message)
+      if (associated(config_error)) call host%fatal_error('process_variable',config_error%message)
 
       select type (output_item)
       class is (type_output_field)
@@ -437,7 +451,7 @@ contains
 
          ! Name of output variable (may differ from source name)
          output_item%output_name = mapping%get_string('name',default=source_name,error=config_error)
-         if (associated(config_error)) call output_manager_fatal_error('process_variable',config_error%message)
+         if (associated(config_error)) call host%fatal_error('process_variable',config_error%message)
 
          output_item%next => file%first_field
          file%first_field => output_item
@@ -450,15 +464,15 @@ contains
 
          ! Prefix for output name
          output_item%prefix = mapping%get_string('prefix',default='',error=config_error)
-         if (associated(config_error)) call output_manager_fatal_error('process_variable',config_error%message)
+         if (associated(config_error)) call host%fatal_error('process_variable',config_error%message)
 
          ! Postfix for output name
          output_item%postfix = mapping%get_string('postfix',default='',error=config_error)
-         if (associated(config_error)) call output_manager_fatal_error('process_variable',config_error%message)
+         if (associated(config_error)) call host%fatal_error('process_variable',config_error%message)
 
          ! Output level
          output_item%output_level = mapping%get_integer('output_level',default=output_level_default,error=config_error)
-         if (associated(config_error)) call output_manager_fatal_error('process_variable',config_error%message)
+         if (associated(config_error)) call host%fatal_error('process_variable',config_error%message)
 
          ! Select this category for output in the field manager.
          output_item%source => file%field_manager%select_category_for_output(output_item%name,output_item%output_level)
@@ -470,7 +484,7 @@ contains
       ! Raise error if any keys are left unused.
       pair => mapping%first
       do while (associated(pair))
-         if (.not.pair%accessed) call output_manager_fatal_error('process_group','key '//trim(pair%key)//' below '//trim(mapping%path)//' not recognized.')
+         if (.not.pair%accessed) call host%fatal_error('process_group','key '//trim(pair%key)//' below '//trim(mapping%path)//' not recognized.')
          pair => pair%next
       end do
 

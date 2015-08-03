@@ -7,7 +7,7 @@ module output_manager_core
 
    implicit none
 
-   public type_output_item,type_output_category,type_output_field, type_file, write_time_string, read_time_string, output_manager_fatal_error, host, type_host
+   public type_output_item,type_output_category,type_output_field, type_file, write_time_string, read_time_string, host, type_host
 
    private
 
@@ -27,11 +27,31 @@ module output_manager_core
 
    integer,parameter,public :: rk = kind(_ONE_)
 
-   type type_host
+   type,abstract :: type_host
    contains
-      procedure :: julian_day
-      procedure :: calendar_date
+      procedure (host_julian_day),deferred :: julian_day
+      procedure (host_calendar_date),deferred :: calendar_date
+      procedure :: fatal_error => host_fatal_error
+      procedure :: log_message => host_log_message
    end type
+
+   abstract interface
+      subroutine host_julian_day(self,yyyy,mm,dd,julian)
+         import type_host
+         class (type_host), intent(in) :: self
+         integer, intent(in)  :: yyyy,mm,dd
+         integer, intent(out) :: julian
+      end subroutine
+   end interface
+
+   abstract interface
+      subroutine host_calendar_date(self,julian,yyyy,mm,dd)
+         import type_host
+         class (type_host), intent(in) :: self
+         integer, intent(in)  :: julian
+         integer, intent(out) :: yyyy,mm,dd
+      end subroutine
+   end interface
 
    type type_output_item
       integer :: time_method = time_method_instantaneous
@@ -96,7 +116,7 @@ contains
       class (type_file),      intent(inout) :: self
       class (type_dictionary),intent(in)    :: mapping
    end subroutine
-   
+
    subroutine initialize(self)
       class (type_file),intent(inout) :: self
       stop 'output_manager_core:initialize not implemented'
@@ -117,24 +137,6 @@ contains
    subroutine finalize(file)
       class (type_file),intent(inout) :: file
    end subroutine
-
-   subroutine julian_day(self,yyyy,mm,dd,julian)
-      class (type_host), intent(in) :: self
-      integer, intent(in)  :: yyyy,mm,dd
-      integer, intent(out) :: julian
-      call output_manager_fatal_error('julian_day','The host of the output manager must implement julian_day subroutine in its type_host-derived class.')
-      julian = -1
-   end subroutine julian_day
-
-   subroutine calendar_date(self,julian,yyyy,mm,dd)
-      class (type_host), intent(in) :: self
-      integer, intent(in)  :: julian
-      integer, intent(out) :: yyyy,mm,dd
-      call output_manager_fatal_error('calendar_date','The host of the output manager must implement calendar_date subroutine in its type_host-derived class.')
-      yyyy = -1
-      mm = -1
-      dd = -1
-   end subroutine calendar_date
 
    subroutine write_time_string(jul,secs,timestr)
       integer,         intent(in)  :: jul,secs
@@ -165,11 +167,19 @@ contains
       secs = 3600*hh + 60*min + ss
    end subroutine read_time_string
 
-   subroutine output_manager_fatal_error(location,error)
-      character(len=*),intent(in) :: location,error
-      
+   subroutine host_fatal_error(self,location,error)
+      class (type_host), intent(in) :: self
+      character(len=*),  intent(in) :: location,error
+
       FATAL trim(location)//': '//trim(error)
-      stop 'output_manager::output_manager_fatal_error'
+      stop 'output_manager::host_fatal_error'
+   end subroutine
+
+   subroutine host_log_message(self,message)
+      class (type_host), intent(in) :: self
+      character(len=*),  intent(in) :: message
+
+      LEVEL2 trim(message)
    end subroutine
 
 end module output_manager_core
