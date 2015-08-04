@@ -8,7 +8,7 @@ module field_manager
    public type_field_manager
 
    ! Public data types and variables
-   public type_node, type_field, type_field_node, type_category_node
+   public type_node, type_field, type_field_node, type_category_node, type_dimension
 
    ! Public parameters
    public string_length,default_fill_value,default_minimum,default_maximum
@@ -40,6 +40,17 @@ module field_manager
 
    integer            :: counter=0
 
+   type type_dimension
+      character(len=string_length)   :: name = ''
+      integer                        :: length = -1
+      integer                        :: id = -1
+      type (type_dimension), pointer :: next => null()
+   end type
+
+   type type_dimension_pointer
+      type (type_dimension), pointer :: p => null()
+   end type
+
    type type_field
       integer                      :: id             = 0
       character(len=string_length) :: name           = ''
@@ -52,7 +63,7 @@ module field_manager
       integer                      :: output_level   = output_level_default
       logical                      :: in_output      = .false.
       integer                      :: status         = status_not_registered
-      integer,allocatable          :: dimensions(:)
+      type (type_dimension_pointer),allocatable :: dimensions(:)
       integer,allocatable          :: extents(:)
       real(rk),pointer             :: data_0d        => null()
       real(rk),pointer             :: data_1d(:)     => null()
@@ -78,14 +89,12 @@ module field_manager
    end type
 
    type type_field_manager
-      integer            :: nx
-      integer            :: ny
-      integer            :: nz
+      type (type_dimension), pointer :: first_dimension => null()
 
-      integer,allocatable :: prepend_dimensions(:)
-      integer,allocatable :: append_dimensions(:)
+      type (type_dimension_pointer),allocatable :: prepend_dimensions(:)
+      type (type_dimension_pointer),allocatable :: append_dimensions(:)
 
-      type (type_field),pointer :: first_field
+      type (type_field),pointer :: first_field => null()
       type (type_category_node) :: root
    contains
       procedure :: initialize
@@ -99,31 +108,59 @@ module field_manager
       procedure :: send_data_3d
       procedure :: send_data_by_name_0d
       procedure :: send_data_by_name_1d
-      procedure :: dimension_length
       procedure :: select_for_output
       procedure :: select_category_for_output
+      procedure :: register_dimension
       generic :: send_data => send_data_0d,send_data_1d,send_data_2d,send_data_3d,send_data_by_name_0d,send_data_by_name_1d
    end type type_field_manager
 
 contains
 
-   subroutine initialize(self,nx,ny,nz,prepend_by_default,append_by_default)
-      class (type_field_manager), intent(out) :: self
-      integer,                    intent(in)  :: nx,ny,nz
-      integer,optional,           intent(in)  :: prepend_by_default(:),append_by_default(:)
-      self%nx = nx
-      self%ny = ny
-      self%nz = nz
-      nullify(self%first_field)
+   subroutine register_dimension(self,name,length,id)
+      class (type_field_manager), intent(inout) :: self
+      character(len=*),           intent(in)    :: name
+      integer,                    intent(in)    :: length
+      integer, optional,          intent(in)    :: id
+
+      type (type_dimension), pointer :: dim
+
+      ! Check whether dimension has already been registered.
+      dim => self%first_dimension
+      do while (associated(dim))
+         if (dim%name==name) call fatal_error('register_dimension','Dimension "'//trim(name)//'" has already been registered.')
+         dim => dim%next
+      end do
+
+      ! Create dimension object
+      allocate(dim)
+      dim%name = name
+      dim%length = length
+      if (present(id)) dim%id = id
+
+      ! Prepend to dimension list.
+      dim%next => self%first_dimension
+      self%first_dimension => dim
+   end subroutine register_dimension
+
+   subroutine initialize(self,prepend_by_default,append_by_default)
+      class (type_field_manager), intent(inout) :: self
+      integer,optional,           intent(in)    :: prepend_by_default(:),append_by_default(:)
+
+      integer :: i
+
       if (present(prepend_by_default)) then
          allocate(self%prepend_dimensions(size(prepend_by_default)))
-         self%prepend_dimensions(:) = prepend_by_default
+         do i=1,size(prepend_by_default)
+            self%prepend_dimensions(i)%p => find_dimension(self,prepend_by_default(i))
+         end do
       else
          allocate(self%prepend_dimensions(0))
       end if
       if (present(append_by_default)) then
          allocate(self%append_dimensions(size(append_by_default)))
-         self%append_dimensions(:) = append_by_default
+         do i=1,size(prepend_by_default)
+            self%append_dimensions(i)%p => find_dimension(self,append_by_default(i))
+         end do
       else
          allocate(self%append_dimensions(0))
       end if
@@ -186,18 +223,17 @@ contains
       end do
    end subroutine finalize
 
-   integer function dimension_length(self, dimid)
+   function find_dimension(self,dimid) result(dim)
       class (type_field_manager), intent(in) :: self
       integer,                    intent(in) :: dimid
-      select case (dimid)
-         case (id_dim_lon);         dimension_length = self%nx
-         case (id_dim_lat);         dimension_length = self%ny
-         case (id_dim_z,id_dim_z1); dimension_length = self%nz
-         case (id_dim_time);        dimension_length = 1
-         case default
-            call fatal_error('dimension_length','Unknown dimension id.')
-      end select
-   end function
+      type (type_dimension), pointer         :: dim
+
+      dim => self%first_dimension
+      do while (associated(dim))
+         if (dim%id==dimid) return
+         dim => dim%next
+      end do
+   end function find_dimension
 
    function select_for_output(self,name) result(field)
       class (type_field_manager),intent(inout) :: self
@@ -320,7 +356,9 @@ contains
          ! Use actual provided dimensions only (no prepend/append)
          if (present(dimensions)) then
             allocate(field%dimensions(size(dimensions)))
-            field%dimensions(:) = dimensions
+            do i=1,size(dimensions)
+               field%dimensions(i)%p => find_dimension(self,dimensions(i))
+            end do
          else
             allocate(field%dimensions(0))
          end if
@@ -328,7 +366,9 @@ contains
          ! Also prepend/append implicit dimensions
          if (present(dimensions)) then
             allocate(field%dimensions(size(self%prepend_dimensions)+size(dimensions)+size(self%append_dimensions)))
-            field%dimensions(size(self%prepend_dimensions)+1:size(self%prepend_dimensions)+size(dimensions)) = dimensions
+            do i=1,size(dimensions)
+               field%dimensions(size(self%prepend_dimensions)+i)%p => find_dimension(self,dimensions(i))
+            end do
          else
             allocate(field%dimensions(size(self%prepend_dimensions)+size(self%append_dimensions)))
          end if
@@ -339,14 +379,14 @@ contains
       ! Determine extents of field (excluding singleton dimensions)
       n = 0
       do i=1,size(field%dimensions)
-         if (self%dimension_length(field%dimensions(i))>1) n = n + 1
+         if (field%dimensions(i)%p%length>1) n = n + 1
       end do
       allocate(field%extents(n))
       n = 0
       do i=1,size(field%dimensions)
-         if (self%dimension_length(field%dimensions(i))>1) then
+         if (field%dimensions(i)%p%length>1) then
             n = n + 1
-            field%extents(n) = self%dimension_length(field%dimensions(i))
+            field%extents(n) = field%dimensions(i)%p%length
          end if
       end do
 

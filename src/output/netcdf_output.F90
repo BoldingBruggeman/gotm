@@ -56,10 +56,19 @@ contains
 
       class (type_output_field), pointer :: output_field
       integer                            :: iret
-      integer                            :: dims_ids(5), current_dim_ids(5)
       integer                            :: i
+      integer,allocatable                :: current_dim_ids(:)
       integer                            :: yyyy,mm,dd
+      integer                            :: length
       character(len=19)                  :: time_string
+      type (type_dimension), pointer     :: dim
+
+      type type_dimension_ids
+         type (type_dimension),pointer :: dim => null()
+         integer :: netcdf_dimid
+         type (type_dimension_ids), pointer :: next => null()
+      end type
+      type (type_dimension_ids), pointer :: first_dim_id, dim_id
 
       ! If no reference time is configured (to be used in time units), use time of first output.
       if (self%reference_julian==-1) then
@@ -71,14 +80,21 @@ contains
       iret = nf90_create(trim(self%path)//'.nc',NF90_CLOBBER,self%ncid); call check_err(iret)
 
       ! Create dimensions [TODO: only those used in the current file]
-      iret = nf90_def_dim(self%ncid, 'lon',  self%field_manager%dimension_length(id_dim_lon), dims_ids(id_dim_lon )); call check_err(iret)
-      iret = nf90_def_dim(self%ncid, 'lat',  self%field_manager%dimension_length(id_dim_lat), dims_ids(id_dim_lat )); call check_err(iret)
-      iret = nf90_def_dim(self%ncid, 'z',    self%field_manager%dimension_length(id_dim_z),   dims_ids(id_dim_z   )); call check_err(iret)
-      iret = nf90_def_dim(self%ncid, 'z1',   self%field_manager%dimension_length(id_dim_z1),  dims_ids(id_dim_z1  )); call check_err(iret)
-      iret = nf90_def_dim(self%ncid, 'time', NF90_UNLIMITED, dims_ids(id_dim_time)); call check_err(iret)
+      dim => self%field_manager%first_dimension
+      first_dim_id => null()
+      do while (associated(dim))
+         allocate(dim_id)
+         dim_id%dim => dim
+         dim_id%next => first_dim_id
+         first_dim_id => dim_id
+         length = dim%length
+         if (length==-1) length = NF90_UNLIMITED
+         iret = nf90_def_dim(self%ncid, trim(dim%name), length, dim_id%netcdf_dimid); call check_err(iret)
+         dim => dim%next
+      end do
 
       ! Create coordinates
-      iret = nf90_def_var(self%ncid,'time',NF90_REAL,(/dims_ids(id_dim_time)/),self%time_id); call check_err(iret)
+      iret = nf90_def_var(self%ncid,'time',NF90_REAL,(/first_dim_id%netcdf_dimid/),self%time_id); call check_err(iret)
       call write_time_string(self%reference_julian,self%reference_seconds,time_string)
       iret = nf90_put_att(self%ncid,self%time_id,'units','seconds since '//trim(time_string)); call check_err(iret)
 
@@ -88,10 +104,13 @@ contains
          select type (output_field)
          class is (type_netcdf_field)
             ! Map internal dimension indices to indices in NetCDF file.
+            allocate(current_dim_ids(size(output_field%source%dimensions)))
             do i=1,size(output_field%source%dimensions)
-               current_dim_ids(i) = dims_ids(output_field%source%dimensions(i))
+               current_dim_ids(i) = get_dim_id(output_field%source%dimensions(i)%p)
             end do
-            iret = nf90_def_var(self%ncid,output_field%output_name, NF90_REAL, current_dim_ids(1:size(output_field%source%dimensions)), output_field%varid); call check_err(iret)
+            iret = nf90_def_var(self%ncid,output_field%output_name, NF90_REAL, current_dim_ids, output_field%varid); call check_err(iret)
+            deallocate(current_dim_ids)
+
             iret = nf90_put_att(self%ncid,output_field%varid,'units',trim(output_field%source%units)); call check_err(iret)
             iret = nf90_put_att(self%ncid,output_field%varid,'long_name',trim(output_field%source%long_name)); call check_err(iret)
             if (output_field%source%standard_name/='') iret = nf90_put_att(self%ncid,output_field%varid,'standard_name',trim(output_field%source%standard_name)); call check_err(iret)
@@ -112,15 +131,14 @@ contains
             allocate(output_field%start(size(output_field%source%dimensions)))
             allocate(output_field%edges(size(output_field%source%dimensions)))
             do i=1,size(output_field%source%dimensions)
-               select case (output_field%source%dimensions(i))
-                  case (id_dim_time)
-                     output_field%start(i) = self%itime
-                     output_field%edges(i) = 1
-                     output_field%itimedim = i
-                  case default
-                     output_field%start(i) = 1
-                     output_field%edges(i) = self%field_manager%dimension_length(output_field%source%dimensions(i))
-               end select
+               if (output_field%source%dimensions(i)%p%length==-1) then
+                  output_field%start(i) = self%itime
+                  output_field%edges(i) = 1
+                  output_field%itimedim = i
+               else
+                  output_field%start(i) = 1
+                  output_field%edges(i) = output_field%source%dimensions(i)%p%length
+               end if
             end do
          end select   
          output_field => output_field%next
@@ -128,7 +146,17 @@ contains
 
       ! Exit define mode
       iret = nf90_enddef(self%ncid); call check_err(iret)
-
+   contains
+      integer function get_dim_id(dim)
+         type (type_dimension), target      :: dim
+         type (type_dimension_ids), pointer :: dim_id
+         get_dim_id = -1
+         dim_id => first_dim_id
+         do while (associated(dim_id))
+            if (associated(dim_id%dim,dim)) get_dim_id = dim_id%netcdf_dimid
+            dim_id => dim_id%next
+         end do
+      end function
    end subroutine initialize
 
    function create_field(self) result(field)
