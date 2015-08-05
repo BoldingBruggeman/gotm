@@ -595,7 +595,7 @@
    allocate(gam(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (gam)'
    gam = _ZERO_
-   if (present(field_manager)) call field_manager%register('gam', 'non-dimensinsional non-local buoyancy flux', '', standard_name='??', dimensions=(/id_dim_z1/), data1d=gam(1:nlev))
+   if (present(field_manager)) call field_manager%register('gam', '', 'non-dimensinsional non-local buoyancy flux', standard_name='??', dimensions=(/id_dim_z1/), data1d=gam(1:nlev))
 
    allocate(an(0:nlev),stat=rc)
    if (rc /= 0) stop 'init_turbulence: Error allocating (an)'
