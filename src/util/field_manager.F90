@@ -119,7 +119,7 @@ contains
    subroutine register_dimension(self,name,length,id)
       class (type_field_manager), intent(inout) :: self
       character(len=*),           intent(in)    :: name
-      integer,                    intent(in)    :: length
+      integer, optional,          intent(in)    :: length
       integer, optional,          intent(in)    :: id
 
       type (type_dimension), pointer :: dim
@@ -134,7 +134,7 @@ contains
       ! Create dimension object
       allocate(dim)
       dim%name = name
-      dim%length = length
+      if (present(length)) dim%length = length
       if (present(id)) dim%id = id
 
       ! Prepend to dimension list.
@@ -152,14 +152,16 @@ contains
          allocate(self%prepend_dimensions(size(prepend_by_default)))
          do i=1,size(prepend_by_default)
             self%prepend_dimensions(i)%p => find_dimension(self,prepend_by_default(i))
+            if (.not.associated(self%prepend_dimensions(i)%p)) call fatal_error('initialize','Auto-prepend dimension has not been registered yet.')
          end do
       else
          allocate(self%prepend_dimensions(0))
       end if
       if (present(append_by_default)) then
          allocate(self%append_dimensions(size(append_by_default)))
-         do i=1,size(prepend_by_default)
+         do i=1,size(append_by_default)
             self%append_dimensions(i)%p => find_dimension(self,append_by_default(i))
+            if (.not.associated(self%append_dimensions(i)%p)) call fatal_error('initialize','Auto-append dimension has not been registered yet.')
          end do
       else
          allocate(self%append_dimensions(0))
@@ -358,6 +360,8 @@ contains
             allocate(field%dimensions(size(dimensions)))
             do i=1,size(dimensions)
                field%dimensions(i)%p => find_dimension(self,dimensions(i))
+               if (.not.associated(field%dimensions(i)%p)) &
+                  call fatal_error('register','Dimension of variable '//trim(field%name)//' has not been registered yet.')
             end do
          else
             allocate(field%dimensions(0))
@@ -368,6 +372,8 @@ contains
             allocate(field%dimensions(size(self%prepend_dimensions)+size(dimensions)+size(self%append_dimensions)))
             do i=1,size(dimensions)
                field%dimensions(size(self%prepend_dimensions)+i)%p => find_dimension(self,dimensions(i))
+               if (.not.associated(field%dimensions(size(self%prepend_dimensions)+i)%p)) &
+                  call fatal_error('register','Dimension of variable '//trim(field%name)//' has not been registered yet.')
             end do
          else
             allocate(field%dimensions(size(self%prepend_dimensions)+size(self%append_dimensions)))
