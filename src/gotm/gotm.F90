@@ -225,7 +225,12 @@
    LEVEL2 trim(name)
 
    LEVEL2 'initializing modules....'
-   call field_manager_%initialize(1,1,nlev,prepend_by_default=(/id_dim_lon,id_dim_lat/),append_by_default=(/id_dim_time/))
+   call field_manager_%register_dimension('lon',1,id=id_dim_lon)
+   call field_manager_%register_dimension('lat',1,id=id_dim_lat)
+   call field_manager_%register_dimension('z',nlev,id=id_dim_z)
+   call field_manager_%register_dimension('z1',nlev,id=id_dim_z1)
+   call field_manager_%register_dimension('time',id=id_dim_time)
+   call field_manager_%initialize(prepend_by_default=(/id_dim_lon,id_dim_lat/),append_by_default=(/id_dim_time/))
    call field_manager_%register('lon','degrees_East','longitude',dimensions=(/id_dim_lon/),no_default_dimensions=.true.,data0d=longitude)
    call field_manager_%register('lat','degrees_North','latitude',dimensions=(/id_dim_lat/),no_default_dimensions=.true.,data0d=latitude)
 #if defined(_FLEXIBLE_OUTPUT_)
