@@ -94,7 +94,7 @@ contains
       end do
 
       ! Create coordinates
-      iret = nf90_def_var(self%ncid,'time',NF90_REAL,(/first_dim_id%netcdf_dimid/),self%time_id); call check_err(iret)
+      iret = nf90_def_var(self%ncid,'time',NF90_REAL,(/get_dim_id(self%field_manager%find_dimension(id_dim_time))/),self%time_id); call check_err(iret)
       call write_time_string(self%reference_julian,self%reference_seconds,time_string)
       iret = nf90_put_att(self%ncid,self%time_id,'units','seconds since '//trim(time_string)); call check_err(iret)
 

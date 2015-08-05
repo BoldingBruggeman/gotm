@@ -111,6 +111,7 @@ module field_manager
       procedure :: select_for_output
       procedure :: select_category_for_output
       procedure :: register_dimension
+      procedure :: find_dimension
       generic :: send_data => send_data_0d,send_data_1d,send_data_2d,send_data_3d,send_data_by_name_0d,send_data_by_name_1d
    end type type_field_manager
 
