@@ -556,46 +556,25 @@ contains
       call self%send_data_1d(field,data)
    end subroutine send_data_by_name_1d
 
-   subroutine filter_singeton_dimensions(extents_in,extents_out)
-      integer,intent(in)               :: extents_in(:)
-      integer,intent(out), allocatable :: extents_out(:)
-
-      integer :: i,n
-
-      n = count(extents_in>1)
-      allocate(extents_out(n))
-      n = 0
-      do i=1,size(extents_in)
-         if (extents_in(i)>1) then
-            n = n + 1
-            extents_out(n) = extents_in(i)
-         end if
-      end do
-   end subroutine filter_singeton_dimensions
-
    subroutine check_sent_data(field,extents)
       type (type_field), intent(inout) :: field
       integer,           intent(in)    :: extents(:)
 
       integer                          :: i
       character(len=2)                 :: str1,str2,str3
-      integer,allocatable              :: filtered_extents(:)
-
-      ! Filter out singeton dimensions
-      call filter_singeton_dimensions(extents,filtered_extents)
 
       ! Check array rank
-      if (size(filtered_extents)/=size(field%extents)) then
-         write (str1,'(i0)') size(filtered_extents)
+      if (size(extents)/=size(field%extents)) then
+         write (str1,'(i0)') size(extents)
          write (str2,'(i0)') size(field%extents)
-         call fatal_error('check_sent_data',trim(str1)//'D data provided for '//trim(field%name)//', but this field should have '//trim(str2)//' dimensions.')
+         call fatal_error('check_sent_data',trim(str1)//'D data provided for '//trim(field%name)//', but this field should have '//trim(str2)//' non-singleton dimensions.')
       end if
 
       ! Check array extents
       do i=1,size(extents)
-         if (filtered_extents(i)/=field%extents(i)) then
+         if (extents(i)/=field%extents(i)) then
             write (str1,'(i0)') i
-            write (str2,'(i0)') filtered_extents(i)
+            write (str2,'(i0)') extents(i)
             write (str3,'(i0)') field%extents(i)
             call fatal_error('check_sent_data', 'Field '//trim(field%name)//', dimension  '//trim(str1)//': &
                &extents of provided data ('//trim(str2)//') does not match expected value '//trim(str3)//'.')
