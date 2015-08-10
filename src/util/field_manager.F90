@@ -43,7 +43,10 @@ module field_manager
    type type_dimension
       character(len=string_length)   :: name = ''
       integer                        :: length = -1
+      integer                        :: global_length = -1
+      integer                        :: offset = 0
       integer                        :: id = -1
+      type (type_field), pointer     :: coordinate => null()
       type (type_dimension), pointer :: next => null()
    end type
 
@@ -117,18 +120,22 @@ module field_manager
 
 contains
 
-   subroutine register_dimension(self,name,length,id)
+   subroutine register_dimension(self,name,length,global_length,offset,id)
       class (type_field_manager), intent(inout) :: self
       character(len=*),           intent(in)    :: name
       integer, optional,          intent(in)    :: length
+      integer, optional,          intent(in)    :: global_length
+      integer, optional,          intent(in)    :: offset
       integer, optional,          intent(in)    :: id
 
       type (type_dimension), pointer :: dim
 
+      if (name=='') call fatal_error('register_dimension','dimension name cannot be empty')
+
       ! Check whether dimension has already been registered.
       dim => self%first_dimension
       do while (associated(dim))
-         if (dim%name==name) call fatal_error('register_dimension','Dimension "'//trim(name)//'" has already been registered.')
+         if (dim%name==name) call fatal_error('register_dimension','dimension "'//trim(name)//'" has already been registered.')
          dim => dim%next
       end do
 
@@ -136,7 +143,14 @@ contains
       allocate(dim)
       dim%name = name
       if (present(length)) dim%length = length
+      if (present(offset)) dim%offset = offset
       if (present(id)) dim%id = id
+      dim%global_length = dim%length
+      if (present(global_length)) dim%global_length = global_length
+
+      ! Basic consistency checks
+      if (dim%length<-1) call fatal_error('register_dimension','length for dimension '//trim(dim%name)//' must be -1 (unlimited) or more')
+      if (dim%offset<0)  call fatal_error('register_dimension','offset for dimension '//trim(dim%name)//' must be 0 or more')
 
       ! Prepend to dimension list.
       dim%next => self%first_dimension
@@ -320,7 +334,7 @@ contains
       end if
    end function find
 
-   subroutine register(self, name, units, long_name, standard_name, fill_value, minimum, maximum, dimensions, data0d, data1d, data2d, data3d, no_default_dimensions, category, output_level, used)
+   subroutine register(self, name, units, long_name, standard_name, fill_value, minimum, maximum, dimensions, data0d, data1d, data2d, data3d, no_default_dimensions, category, output_level, coordinate_dimension, used)
       class (type_field_manager),intent(inout) :: self
       character(len=*),          intent(in)    :: name, units, long_name
       character(len=*),optional, intent(in)    :: standard_name
@@ -330,11 +344,16 @@ contains
       logical,         optional, intent(in)    :: no_default_dimensions
       character(len=*),optional, intent(in)    :: category
       integer,         optional, intent(in)    :: output_level
+      integer,         optional, intent(in)    :: coordinate_dimension
       logical,         optional, intent(out)   :: used
 
-      type (type_field), pointer :: field
+      type (type_field),     pointer :: field
+      type (type_dimension), pointer :: dim
       logical :: no_default_dimensions_
       integer :: i,n
+
+      if (name=='') call fatal_error('add_field','name cannot be empty.')
+      if (long_name=='') call fatal_error('add_field','long_name cannot be empty.')
 
       ! Find existing field (possible created by select_for_output) or create new one.
       field => self%find(name,create=.true.)
@@ -352,6 +371,11 @@ contains
       if (present(minimum)) field%minimum = minimum
       if (present(maximum)) field%maximum = maximum
       if (present(output_level)) field%output_level = output_level
+      if (present(coordinate_dimension)) then
+         dim => find_dimension(self,coordinate_dimension)
+         if (.not.associated(dim)) call fatal_error('register','coordinate dimension of variable '//trim(field%name)//' has not been registered yet.')
+         dim%coordinate => field
+      end if
 
       no_default_dimensions_ = .false.
       if (present(no_default_dimensions)) no_default_dimensions_ = no_default_dimensions

@@ -7,7 +7,7 @@ module output_manager_core
 
    implicit none
 
-   public type_output_item,type_output_category,type_output_field, type_file, write_time_string, read_time_string, host, type_host
+   public type_output_item,type_output_category,type_output_field, type_file, write_time_string, read_time_string, host, type_host, type_output_dimension
 
    private
 
@@ -62,13 +62,23 @@ module output_manager_core
       character(len=string_length)         :: prefix = ''
       character(len=string_length)         :: postfix = ''
       integer                              :: output_level = output_level_default
-      class (type_category_node),   pointer :: source => null()
+      class (type_category_node),  pointer :: source => null()
       class (type_output_category),pointer :: next => null()
    end type
-   
+
+   type type_output_field_pointer
+      type (type_output_field), pointer :: p => null()
+   end type
+
    type,extends(type_output_item) :: type_output_field
       character(len=string_length) :: output_name = ''
       type (type_field),pointer    :: source => null()
+
+      ! Pointers to source data
+      real(rk),pointer                  :: source_0d        => null()
+      real(rk),pointer                  :: source_1d(:)     => null()
+      real(rk),pointer                  :: source_2d(:,:)   => null()
+      real(rk),pointer                  :: source_3d(:,:,:) => null()
 
       ! Work arrays (only allocated/used if storing non-instantaneous data)
       real(rk)                          :: work_0d
@@ -82,30 +92,44 @@ module output_manager_core
       real(rk),pointer                  :: data_2d(:,:)   => null()
       real(rk),pointer                  :: data_3d(:,:,:) => null()
 
+      type (type_output_field_pointer), allocatable :: coordinates(:)
+
       class (type_output_field),pointer :: next => null()
    end type type_output_field
 
+   type type_output_dimension
+      type (type_dimension), pointer :: source => null()
+      integer :: start = 1
+      integer :: stop  = -1
+      type (type_output_dimension), pointer :: next => null()
+   end type type_output_dimension
+
    type type_file
-      type (type_field_manager),pointer :: field_manager => null()
-      character(len=max_path)        :: path          = ''
-      integer                        :: time_unit     = time_unit_none
-      integer                        :: time_step     = 0
-      integer                        :: n             = 0  ! Number of model time steps processed so far for next output
-      integer                        :: next_julian   = -1
-      integer                        :: next_seconds  = -1
-      integer                        :: first_julian  = -1
-      integer                        :: first_seconds = -1
-      integer                        :: last_julian   = huge(1)
-      integer                        :: last_seconds  = 0
-      class (type_output_category),pointer :: first_category => null()
-      class (type_output_field),pointer    :: first_field    => null()
-      class (type_file),pointer      :: next          => null()
+      type (type_field_manager),    pointer :: field_manager   => null()
+      character(len=max_path)               :: path            = ''
+      integer                               :: time_unit       = time_unit_none
+      integer                               :: time_step       = 0
+      integer                               :: n               = 0  ! Number of model time steps processed so far for next output
+      integer                               :: next_julian     = -1
+      integer                               :: next_seconds    = -1
+      integer                               :: first_julian    = -1
+      integer                               :: first_seconds   = -1
+      integer                               :: last_julian     = huge(1)
+      integer                               :: last_seconds    = 0
+      type (type_output_dimension), pointer :: first_dimension => null()
+      class (type_output_category), pointer :: first_category  => null()
+      class (type_output_field),    pointer :: first_field     => null()
+      class (type_file),            pointer :: next            => null()
    contains
       procedure :: configure
       procedure :: initialize
       procedure :: save
       procedure :: finalize
       procedure :: create_field
+      procedure :: is_dimension_used
+      procedure :: find
+      procedure :: append
+      procedure :: get_dimension
    end type type_file
 
    class (type_host),pointer,save :: host => null()
@@ -181,5 +205,79 @@ contains
 
       LEVEL2 trim(message)
    end subroutine
+
+   logical function is_dimension_used(self,dim)
+      class (type_file),intent(inout) :: self
+      type (type_dimension), target   :: dim
+
+      class (type_output_field),pointer :: output_field
+      integer :: i
+
+      is_dimension_used = .true.
+      output_field => self%first_field
+      do while (associated(output_field))
+         do i=1,size(output_field%source%dimensions)
+            if (associated(output_field%source%dimensions(i)%p,dim)) return
+         end do
+         output_field => output_field%next
+      end do
+      is_dimension_used = .false.
+   end function is_dimension_used
+
+   function find(self,field) result(output_field)
+      class (type_file),intent(inout) :: self
+      class (type_field), target      :: field
+      class (type_output_field),pointer :: output_field
+
+      output_field => self%first_field
+      do while (associated(output_field))
+         if (associated(output_field%source,field)) return
+         output_field => output_field%next
+      end do
+   end function find
+
+   subroutine append(self,output_field)
+      class (type_file),intent(inout)    :: self
+      class (type_output_field), pointer :: output_field
+      class (type_output_field),pointer  :: current
+
+      current => self%first_field
+      do while (associated(current))
+         if (current%output_name==output_field%output_name) &
+            call host%fatal_error('append','output field with name "'//trim(output_field%output_name)//'" already exists.')
+         current => current%next
+      end do
+
+      if (associated(self%first_field)) then
+         current => self%first_field
+         do while (associated(current%next))
+            current => current%next
+         end do
+         current%next => output_field
+      else
+         self%first_field => output_field
+      end if
+      output_field%next => null()
+   end subroutine append
+
+   function get_dimension(self,dim) result(output_dimension)
+      class (type_file),intent(inout) :: self
+      type (type_dimension),pointer   :: dim
+      type (type_output_dimension), pointer :: output_dimension
+
+      ! First try to find existing dimension entry.
+      output_dimension => self%first_dimension
+      do while (associated(output_dimension))
+         if (associated(output_dimension%source,dim)) return
+         output_dimension => output_dimension%next
+      end do
+
+      ! Create new dimension entry.
+      allocate(output_dimension)
+      output_dimension%next => self%first_dimension
+      self%first_dimension => output_dimension
+      output_dimension%source => dim
+      output_dimension%stop = dim%length
+   end function get_dimension
 
 end module output_manager_core

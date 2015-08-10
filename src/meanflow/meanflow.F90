@@ -243,7 +243,7 @@
    allocate(z(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (z)'
    z = _ZERO_
-   call field_manager%register('z', 'm', 'depth', standard_name='??', dimensions=(/id_dim_z/), data1d=z(1:nlev))
+   call field_manager%register('z', 'm', 'depth', standard_name='??', dimensions=(/id_dim_z/), data1d=z(1:nlev), coordinate_dimension=id_dim_z)
 
    allocate(h(0:nlev),stat=rc)
    if (rc /= 0) STOP 'init_meanflow: Error allocating (h)'

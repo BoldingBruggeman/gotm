@@ -61,10 +61,12 @@ contains
       integer                            :: yyyy,mm,dd
       integer                            :: length
       character(len=19)                  :: time_string
+      character(len=256)                 :: coordinates
       type (type_dimension), pointer     :: dim
+      type (type_output_dimension), pointer :: output_dimension
 
       type type_dimension_ids
-         type (type_dimension),pointer :: dim => null()
+         type (type_output_dimension),pointer :: output_dimension => null()
          integer :: netcdf_dimid
          type (type_dimension_ids), pointer :: next => null()
       end type
@@ -79,24 +81,29 @@ contains
       ! Create NetCDF file
       iret = nf90_create(trim(self%path)//'.nc',NF90_CLOBBER,self%ncid); call check_err(iret)
 
-      ! Create dimensions [TODO: only those used in the current file]
+      ! Create dimensions
       dim => self%field_manager%first_dimension
       first_dim_id => null()
       do while (associated(dim))
-         allocate(dim_id)
-         dim_id%dim => dim
-         dim_id%next => first_dim_id
-         first_dim_id => dim_id
-         length = dim%length
-         if (length==-1) length = NF90_UNLIMITED
-         iret = nf90_def_dim(self%ncid, trim(dim%name), length, dim_id%netcdf_dimid); call check_err(iret)
+         if (self%is_dimension_used(dim)) then
+            allocate(dim_id)
+            dim_id%output_dimension => self%get_dimension(dim)
+            dim_id%next => first_dim_id
+            first_dim_id => dim_id
+            length = dim_id%output_dimension%stop-dim_id%output_dimension%start+1
+            if (dim%length==-1) length = NF90_UNLIMITED
+            iret = nf90_def_dim(self%ncid, trim(dim%name), length, dim_id%netcdf_dimid); call check_err(iret)
+         end if
          dim => dim%next
       end do
 
-      ! Create coordinates
-      iret = nf90_def_var(self%ncid,'time',NF90_REAL,(/get_dim_id(self%field_manager%find_dimension(id_dim_time))/),self%time_id); call check_err(iret)
-      call write_time_string(self%reference_julian,self%reference_seconds,time_string)
-      iret = nf90_put_att(self%ncid,self%time_id,'units','seconds since '//trim(time_string)); call check_err(iret)
+      ! Create time coordinate
+      dim => self%field_manager%find_dimension(id_dim_time)
+      if (self%is_dimension_used(dim)) then
+         iret = nf90_def_var(self%ncid,'time',NF90_REAL,(/get_dim_id(dim)/),self%time_id); call check_err(iret)
+         call write_time_string(self%reference_julian,self%reference_seconds,time_string)
+         iret = nf90_put_att(self%ncid,self%time_id,'units','seconds since '//trim(time_string)); call check_err(iret)
+      end if
 
       ! Create variables
       output_field => self%first_field
@@ -117,7 +124,15 @@ contains
             if (output_field%source%minimum/=default_minimum) iret = nf90_put_att(self%ncid,output_field%varid,'valid_min',real(output_field%source%minimum,ncrk)); call check_err(iret)
             if (output_field%source%maximum/=default_maximum) iret = nf90_put_att(self%ncid,output_field%varid,'valid_max',real(output_field%source%maximum,ncrk)); call check_err(iret)
             if (output_field%source%fill_value/=default_fill_value) iret = nf90_put_att(self%ncid,output_field%varid,'_FillValue',real(output_field%source%fill_value,ncrk)); call check_err(iret)
-         
+
+            coordinates = ''
+            do i=1,size(output_field%coordinates)
+               if (associated(output_field%coordinates(i)%p)) coordinates = trim(coordinates)//' '//trim(output_field%coordinates(i)%p%output_name)
+            end do
+            if (coordinates/='') then
+               iret = nf90_put_att(self%ncid,output_field%varid,'coordinates',trim(coordinates(2:))); call check_err(iret)
+            end if
+
             select case (output_field%time_method)
                case (time_method_instantaneous)
                   iret = nf90_put_att(self%ncid,output_field%varid,'cell_methods','time: point'); call check_err(iret)
@@ -136,8 +151,9 @@ contains
                   output_field%edges(i) = 1
                   output_field%itimedim = i
                else
+                  output_dimension => self%get_dimension(output_field%source%dimensions(i)%p)
                   output_field%start(i) = 1
-                  output_field%edges(i) = output_field%source%dimensions(i)%p%length
+                  output_field%edges(i) = output_dimension%stop-output_dimension%start+1
                end if
             end do
          end select   
@@ -153,7 +169,7 @@ contains
          get_dim_id = -1
          dim_id => first_dim_id
          do while (associated(dim_id))
-            if (associated(dim_id%dim,dim)) get_dim_id = dim_id%netcdf_dimid
+            if (associated(dim_id%output_dimension%source,dim)) get_dim_id = dim_id%netcdf_dimid
             dim_id => dim_id%next
          end do
       end function
@@ -177,19 +193,21 @@ contains
       self%itime = self%itime + 1
 
       ! Store time coordinate
-      temp_time = (julianday-self%reference_julian)*real(86400,ncrk) + secondsofday-self%reference_seconds
-      iret = nf90_put_var(self%ncid,self%time_id,temp_time,(/self%itime/)); call check_err(iret)
-      
+      if (self%time_id/=-1) then
+         temp_time = (julianday-self%reference_julian)*real(86400,ncrk) + secondsofday-self%reference_seconds
+         iret = nf90_put_var(self%ncid,self%time_id,temp_time,(/self%itime/)); call check_err(iret)
+      end if
+
       output_field => self%first_field
       do while (associated(output_field))
          select type (output_field)
          class is (type_netcdf_field)
             if (output_field%itimedim/=-1) output_field%start(output_field%itimedim) = self%itime
-            if (associated(output_field%source%data_3d)) then
+            if (associated(output_field%source_3d)) then
                iret = nf90_put_var(self%ncid,output_field%varid,output_field%data_3d,output_field%start,output_field%edges)
-            elseif (associated(output_field%source%data_2d)) then
+            elseif (associated(output_field%source_2d)) then
                iret = nf90_put_var(self%ncid,output_field%varid,output_field%data_2d,output_field%start,output_field%edges)
-            elseif (associated(output_field%source%data_1d)) then
+            elseif (associated(output_field%source_1d)) then
                iret = nf90_put_var(self%ncid,output_field%varid,output_field%data_1d,output_field%start,output_field%edges)
             else
                iret = nf90_put_var(self%ncid,output_field%varid,output_field%data_0d,output_field%start)

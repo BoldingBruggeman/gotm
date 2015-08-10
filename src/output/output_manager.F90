@@ -39,7 +39,7 @@ contains
    subroutine collect_from_categories(file)
       class (type_file), intent(inout) :: file
       class (type_output_category), pointer :: output_category
-      class (type_output_item),pointer  :: output_item
+      class (type_output_field),pointer  :: output_field
       type (type_category_node) :: list
       class (type_base_node), pointer :: field_node, next_field_node
 
@@ -54,17 +54,11 @@ contains
             select type (field_node)
             class is (type_field_node)
                write (*,*) '  adding '//trim(field_node%field%name)
-
-               ! Create output field, set relevant properties, and prepend to output field list.
-               output_item => file%create_field()
-               output_item%time_method = output_category%time_method
-               select type (output_item)
-               class is (type_output_field)
-                  output_item%source => field_node%field
-                  output_item%output_name = trim(output_category%prefix)//trim(field_node%field%name)//trim(output_category%postfix)
-                  output_item%next => file%first_field
-                  file%first_field => output_item
-               end select
+               output_field => file%create_field()
+               output_field%time_method = output_category%time_method
+               output_field%source => field_node%field
+               output_field%output_name = trim(output_category%prefix)//trim(field_node%field%name)//trim(output_category%postfix)
+               call file%append(output_field)
             end select
             next_field_node => field_node%next_sibling
             deallocate(field_node)
@@ -74,6 +68,32 @@ contains
       end do
    end subroutine collect_from_categories
 
+   subroutine add_coordinate_variables(file)
+      class (type_file), intent(inout) :: file
+
+      class (type_output_field),  pointer :: output_field
+      class (type_output_field),  pointer :: coordinate_field
+      integer :: i
+
+      output_field => file%first_field
+      do while (associated(output_field))
+         allocate(output_field%coordinates(size(output_field%source%dimensions)))
+         do i=1,size(output_field%source%dimensions)
+            if (.not.associated(output_field%source%dimensions(i)%p%coordinate)) cycle
+            coordinate_field => file%find(output_field%source%dimensions(i)%p%coordinate)
+            if (.not.associated(coordinate_field)) then
+               coordinate_field => file%create_field()
+               coordinate_field%time_method = time_method_instantaneous
+               coordinate_field%source => output_field%source%dimensions(i)%p%coordinate
+               coordinate_field%output_name = trim(coordinate_field%source%name)
+               call file%append(coordinate_field)
+            end if
+            output_field%coordinates(i)%p => coordinate_field
+         end do
+         output_field => output_field%next
+      end do
+   end subroutine add_coordinate_variables
+
    subroutine output_manager_save(julianday,secondsofday)
       integer,intent(in) :: julianday,secondsofday
 
@@ -81,6 +101,9 @@ contains
       class (type_output_field),    pointer :: output_field
       integer                               :: yyyy,mm,dd
       logical                               :: in_window
+      type (type_output_dimension), pointer :: output_dim
+      integer, allocatable, dimension(:)    :: starts, stops
+      integer                               :: i,j
 
       file => first_file
       do while (associated(file))
@@ -96,6 +119,9 @@ contains
             if (file%next_julian==-1) then
                ! Add variables below selected categories to output
                call collect_from_categories(file)
+
+               ! Add any missing coordinate variables
+               call add_coordinate_variables(file)
 
                ! First check whether all fields included in this file have been registered.
                output_field => file%first_field
@@ -127,23 +153,54 @@ contains
                ! Initialize fields based on time integrals
                output_field => file%first_field
                do while (associated(output_field))
+                  ! Determine effective dimension range
+                  allocate(starts(1:size(output_field%source%dimensions)))
+                  allocate(stops(1:size(output_field%source%dimensions)))
+                  j = 0
+                  do i=1,size(output_field%source%dimensions)
+                     output_dim => file%get_dimension(output_field%source%dimensions(i)%p)
+                     if (output_dim%source%length>1) then
+                        ! Not a singleton dimension - create the slice spec
+                        j = j + 1
+                        starts(j) = output_dim%start
+                        stops(j) = output_dim%stop
+                     end if
+                  end do
+
+                  ! Select appropriate data slice
+                  if (associated(output_field%source%data_3d)) then
+                     if (j/=3) call host%fatal_error('output_manager_save','BUG: data of '//trim(output_field%source%name)//' contains one or more singleton dimensions.')
+                     output_field%source_3d => output_field%source%data_3d(starts(1):stops(1),starts(2):stops(2),starts(3):stops(3))
+                  elseif (associated(output_field%source%data_2d)) then
+                     if (j/=2) call host%fatal_error('output_manager_save','BUG: data of '//trim(output_field%source%name)//' contains one or more singleton dimensions.')
+                     output_field%source_2d => output_field%source%data_2d(starts(1):stops(1),starts(2):stops(2))
+                  elseif (associated(output_field%source%data_1d)) then                  
+                     if (j/=1) call host%fatal_error('output_manager_save','BUG: data of '//trim(output_field%source%name)//' contains one or more singleton dimensions.')
+                     output_field%source_1d => output_field%source%data_1d(starts(1):stops(1))
+                  else
+                     if (j/=0) call host%fatal_error('output_manager_save','BUG: data of '//trim(output_field%source%name)//' contains one or more singleton dimensions.')
+                     output_field%source_0d => output_field%source%data_0d
+                  end if
+
+                  ! Deallocate dimension range specifyers.
+                  deallocate(starts,stops)
 
                   ! Store instantaneous data by default.
-                  output_field%data_0d => output_field%source%data_0d
-                  output_field%data_1d => output_field%source%data_1d
-                  output_field%data_2d => output_field%source%data_2d
-                  output_field%data_3d => output_field%source%data_3d
+                  output_field%data_0d => output_field%source_0d
+                  output_field%data_1d => output_field%source_1d
+                  output_field%data_2d => output_field%source_2d
+                  output_field%data_3d => output_field%source_3d
 
                   if (output_field%time_method/=time_method_instantaneous) then
                      ! We are not storing the instantaneous value. Create a work array that will be stored instead.
-                     if (associated(output_field%source%data_3d)) then
-                        allocate(output_field%work_3d(size(output_field%source%data_3d,1),size(output_field%source%data_3d,2),size(output_field%source%data_3d,3)))
+                     if (associated(output_field%source_3d)) then
+                        allocate(output_field%work_3d(size(output_field%source_3d,1),size(output_field%source_3d,2),size(output_field%source_3d,3)))
                         output_field%data_3d => output_field%work_3d
-                     elseif (associated(output_field%source%data_2d)) then
-                        allocate(output_field%work_2d(size(output_field%source%data_2d,1),size(output_field%source%data_2d,2)))
+                     elseif (associated(output_field%source_2d)) then
+                        allocate(output_field%work_2d(size(output_field%source_2d,1),size(output_field%source_2d,2)))
                         output_field%data_2d => output_field%work_2d
-                     elseif (associated(output_field%source%data_1d)) then
-                        allocate(output_field%work_1d(size(output_field%source%data_1d)))
+                     elseif (associated(output_field%source_1d)) then
+                        allocate(output_field%work_1d(size(output_field%source_1d)))
                         output_field%data_1d => output_field%work_1d
                      else
                         output_field%data_0d => output_field%work_0d
@@ -153,22 +210,22 @@ contains
                   select case (output_field%time_method)
                      case (time_method_mean)
                         ! Temporal mean: use initial value on first output.
-                        if (associated(output_field%source%data_3d)) then
-                           output_field%work_3d(:,:,:) = output_field%source%data_3d
-                        elseif (associated(output_field%source%data_2d)) then
-                           output_field%work_2d(:,:) = output_field%source%data_2d
-                        elseif (associated(output_field%source%data_1d)) then
-                           output_field%work_1d(:) = output_field%source%data_1d
+                        if (associated(output_field%source_3d)) then
+                           output_field%work_3d(:,:,:) = output_field%source_3d
+                        elseif (associated(output_field%source_2d)) then
+                           output_field%work_2d(:,:) = output_field%source_2d
+                        elseif (associated(output_field%source_1d)) then
+                           output_field%work_1d(:) = output_field%source_1d
                         else
-                           output_field%work_0d = output_field%source%data_0d
+                           output_field%work_0d = output_field%source_0d
                         end if
                      case (time_method_integrated)
                         ! Time integral: use zero at first output.
-                        if (associated(output_field%source%data_3d)) then
+                        if (associated(output_field%source_3d)) then
                            output_field%work_3d(:,:,:) = 0.0_rk
-                        elseif (associated(output_field%source%data_2d)) then
+                        elseif (associated(output_field%source_2d)) then
                            output_field%work_2d(:,:) = 0.0_rk
-                        elseif (associated(output_field%source%data_1d)) then
+                        elseif (associated(output_field%source_1d)) then
                            output_field%work_1d(:) = 0.0_rk
                         else
                            output_field%work_0d = 0.0_rk
@@ -251,13 +308,13 @@ contains
                case (time_method_mean,time_method_integrated)
                   ! This is a time-integrated field that needs to be incremented.
                   if (allocated(output_field%work_3d)) then
-                     output_field%work_3d(:,:,:) = output_field%work_3d + output_field%source%data_3d
+                     output_field%work_3d(:,:,:) = output_field%work_3d + output_field%source_3d
                   elseif (allocated(output_field%work_2d)) then
-                     output_field%work_2d(:,:) = output_field%work_2d + output_field%source%data_2d
+                     output_field%work_2d(:,:) = output_field%work_2d + output_field%source_2d
                   elseif (allocated(output_field%work_1d)) then
-                     output_field%work_1d(:) = output_field%work_1d + output_field%source%data_1d
+                     output_field%work_1d(:) = output_field%work_1d + output_field%source_1d
                   else
-                     output_field%work_0d = output_field%work_0d + output_field%source%data_0d
+                     output_field%work_0d = output_field%work_0d + output_field%source_0d
                   end if
             end select
             output_field => output_field%next
@@ -361,10 +418,44 @@ contains
       if (associated(config_error)) call host%fatal_error('process_file',config_error%message)
       if (string/='') call read_time_string(trim(string),file%last_julian,file%last_seconds)
 
+      ! Determine dimension ranges
+      call configure_dimension(id_dim_lon,'i')
+      call configure_dimension(id_dim_lat,'j')
+      call configure_dimension(id_dim_z,  'k')
+
       ! Allow specific file implementation to parse additional settings from yaml file.
       call file%configure(mapping)
 
       call process_group(file,mapping,time_method_instantaneous)
+
+   contains
+
+      subroutine configure_dimension(dimid,symbol)
+         integer,         intent(in) :: dimid
+         character(len=1),intent(in) :: symbol
+
+         type (type_dimension),       pointer :: dim
+         type (type_output_dimension),pointer :: output_dim
+         character(len=8)                     :: strmax
+
+         dim => field_manager%find_dimension(dimid)
+         if (associated(dim)) then
+            write (strmax,'(i0)') dim%global_length
+            output_dim => file%get_dimension(dim)
+            output_dim%start = mapping%get_integer(trim(symbol)//'_start',default=1,error=config_error)
+            if (associated(config_error)) call host%fatal_error('process_file',config_error%message)
+            if (output_dim%start<1.or.output_dim%start>dim%global_length) call host%fatal_error('process_file',trim(symbol)//'_start must lie between 1 and '//trim(strmax))
+            output_dim%stop = mapping%get_integer(trim(symbol)//'_stop',default=dim%global_length,error=config_error)
+            if (associated(config_error)) call host%fatal_error('process_file',config_error%message)
+            if (output_dim%stop<1.or.output_dim%stop>dim%global_length) call host%fatal_error('process_file',trim(symbol)//'_stop must lie between 1 and '//trim(strmax))
+            if (output_dim%start>output_dim%stop) call host%fatal_error('process_file',trim(symbol)//'_stop must equal or exceed '//trim(symbol)//'_start')
+
+            ! Adjust start and stop according to dimension offset [subdomain]
+            output_dim%start = max(output_dim%start - output_dim%source%offset, 1)
+            output_dim%stop = max(output_dim%stop - output_dim%source%offset, 0)
+         end if
+      end subroutine configure_dimension
+
    end subroutine process_file
 
    recursive subroutine process_group(file,mapping,parent_time_method)
@@ -425,6 +516,7 @@ contains
       character(len=string_length) :: source_name
       type (type_error),        pointer :: config_error
       class (type_output_item),pointer  :: output_item
+      class (type_output_field),pointer :: output_field
       integer                           :: n
       type (type_key_value_pair),pointer :: pair
 
@@ -453,8 +545,8 @@ contains
          output_item%output_name = mapping%get_string('name',default=source_name,error=config_error)
          if (associated(config_error)) call host%fatal_error('process_variable',config_error%message)
 
-         output_item%next => file%first_field
-         file%first_field => output_item
+         output_field => output_item
+         call file%append(output_field)
       class is (type_output_category)
          if (n==1) then
             output_item%name = ''
