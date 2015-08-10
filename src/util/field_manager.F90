@@ -618,24 +618,43 @@ contains
       class (type_field_manager),intent(inout) :: self
       type (type_field),         intent(inout) :: field
       real(rk),target                          :: data(:)
-      call check_sent_data(field,shape(data))
-      field%data_1d => data
+      if (size(data,1)==1) then
+         ! Singleton dimension - send scalar value instead
+         call send_data_0d(self,field,data(1))
+      else
+         call check_sent_data(field,shape(data))
+         field%data_1d => data
+      end if
    end subroutine send_data_1d
 
-   subroutine send_data_2d(field_manager, field, data)
-      class (type_field_manager),intent(inout) :: field_manager
+   subroutine send_data_2d(self, field, data)
+      class (type_field_manager),intent(inout) :: self
       type (type_field),         intent(inout) :: field
       real(rk),target                          :: data(:,:)
-      call check_sent_data(field,shape(data))
-      field%data_2d => data
+      if (size(data,1)==1) then
+         call send_data_1d(self,field,data(1,:))
+      elseif (size(data,2)==1) then
+         call send_data_1d(self,field,data(:,1))
+      else
+         call check_sent_data(field,shape(data))
+         field%data_2d => data
+      end if
    end subroutine send_data_2d
 
    subroutine send_data_3d(self, field, data)
       class (type_field_manager),intent(inout) :: self
       type (type_field),         intent(inout) :: field
       real(rk),target                          :: data(:,:,:)
-      call check_sent_data(field,shape(data))
-      field%data_3d => data
+      if (size(data,1)==1) then
+         call send_data_2d(self,field,data(1,:,:))
+      elseif (size(data,2)==1) then
+         call send_data_2d(self,field,data(:,1,:))
+      elseif (size(data,3)==1) then
+         call send_data_2d(self,field,data(:,:,1))
+      else
+         call check_sent_data(field,shape(data))
+         field%data_3d => data
+      end if
    end subroutine send_data_3d
 
    subroutine fatal_error(location,error)
