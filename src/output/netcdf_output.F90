@@ -20,7 +20,7 @@ module netcdf_output
       integer :: time_id       = -1 ! Identifier of time dimension
       integer :: reference_julian  = -1
       integer :: reference_seconds = -1
-      integer :: sync_interval = 1  ! Number of output time step between calls to nf90_sync (-1 to disbale syncing)
+      integer :: sync_interval = 1  ! Number of output time step between calls to nf90_sync (-1 to disable syncing)
    contains
       procedure :: configure
       procedure :: initialize
@@ -79,7 +79,7 @@ contains
       end if
 
       ! Create NetCDF file
-      iret = nf90_create(trim(self%path)//'.nc',NF90_CLOBBER,self%ncid); call check_err(iret)
+      iret = nf90_create(trim(self%path)//'.nc'//trim(self%postfix),NF90_CLOBBER,self%ncid); call check_err(iret)
 
       ! Create dimensions
       dim => self%field_manager%first_dimension

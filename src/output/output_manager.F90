@@ -17,14 +17,16 @@ module output_manager
 
 contains
 
-   subroutine output_manager_init(field_manager)
+   subroutine output_manager_init(field_manager,postfix)
       type (type_field_manager), target :: field_manager
+      character(len=*), optional, intent(in) :: postfix
+
       if (.not.associated(host)) then
          write (*,*) 'output_manager_init: the host of an output manager must set the host pointer before calling output_manager_init'
          stop 1
       end if
       nullify(first_file)
-      call configure_from_yaml(field_manager)
+      call configure_from_yaml(field_manager,postfix)
    end subroutine
 
    subroutine output_manager_clean()
@@ -327,8 +329,10 @@ contains
       end do
    end subroutine output_manager_save
    
-   subroutine configure_from_yaml(field_manager)
-      type (type_field_manager), target :: field_manager
+   subroutine configure_from_yaml(field_manager,postfix)
+      type (type_field_manager), target      :: field_manager
+      character(len=*), optional, intent(in) :: postfix
+
       character(len=yaml_error_length)   :: yaml_error
       class (type_node),         pointer :: node
       type (type_key_value_pair),pointer :: pair
@@ -358,7 +362,7 @@ contains
                if (pair%key=='') call host%fatal_error('configure_from_yaml','Empty file path specified.')
                select type (dict=>pair%value)
                   class is (type_dictionary)
-                     call process_file(field_manager,trim(pair%key),dict)
+                     call process_file(field_manager,trim(pair%key),dict,postfix=postfix)
                   class default
                      call host%fatal_error('configure_from_yaml','Contents of '//trim(dict%path)//' must be a dictionary, not a single value.')
                end select
@@ -369,10 +373,11 @@ contains
       end select
    end subroutine configure_from_yaml
 
-   subroutine process_file(field_manager,path,mapping)
-      type (type_field_manager), target :: field_manager
-      character(len=*),       intent(in) :: path
-      class (type_dictionary),intent(in) :: mapping
+   subroutine process_file(field_manager,path,mapping,postfix)
+      type (type_field_manager), target      :: field_manager
+      character(len=*), optional, intent(in) :: postfix
+      character(len=*),           intent(in) :: path
+      class (type_dictionary),    intent(in) :: mapping
 
       type (type_error),  pointer :: config_error
       class (type_scalar),pointer :: scalar
@@ -383,6 +388,7 @@ contains
       allocate(type_netcdf_file::file)
       file%field_manager => field_manager
       file%path = path
+      if (present(postfix)) file%postfix = postfix
       file%next => first_file
       first_file => file
 

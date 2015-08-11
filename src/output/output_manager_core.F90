@@ -107,6 +107,7 @@ module output_manager_core
    type type_file
       type (type_field_manager),    pointer :: field_manager   => null()
       character(len=max_path)               :: path            = ''
+      character(len=max_path)               :: postfix         = ''
       integer                               :: time_unit       = time_unit_none
       integer                               :: time_step       = 0
       integer                               :: n               = 0  ! Number of model time steps processed so far for next output
