@@ -79,7 +79,7 @@ contains
       end if
 
       ! Create NetCDF file
-      iret = nf90_create(trim(self%path)//'.nc'//trim(self%postfix),NF90_CLOBBER,self%ncid); call check_err(iret)
+      iret = nf90_create(trim(self%path)//trim(self%postfix)//'.nc',NF90_CLOBBER,self%ncid); call check_err(iret)
 
       ! Create dimensions
       dim => self%field_manager%first_dimension
