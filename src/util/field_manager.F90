@@ -326,7 +326,7 @@ contains
 
       create_eff = .false.
       if (present(create)) create_eff = create
-      if (create) then
+      if (create_eff) then
          allocate(field)
          field%name = name
          field%next => self%first_field
