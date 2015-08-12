@@ -67,7 +67,7 @@ module output_manager_core
    end type
 
    type type_output_field_pointer
-      type (type_output_field), pointer :: p => null()
+      class (type_output_field), pointer :: p => null()
    end type
 
    type,extends(type_output_item) :: type_output_field
