@@ -48,10 +48,11 @@ contains
       output_category => file%first_category
       do while (associated(output_category))
          write (*,*) 'processing output category '//trim(output_category%name)
+         if (.not.output_category%source%has_fields()) call host%fatal_error('collect_from_categories','No variables have been registered under output category "'//trim(output_category%name)//'".')
          list%first_child => null()
          call output_category%source%get_all_fields(list,output_category%output_level)
          field_node => list%first_child
-         if (.not.associated(field_node)) call host%fatal_error('collect_from_categories','No variables have been registered under output category "'//trim(output_category%name)//'".')
+         if (.not.associated(field_node)) call host%log_message('WARNING: output category "'//trim(output_category%name)//'" does not contain any variables with requested output level.')
          do while (associated(field_node))
             select type (field_node)
             class is (type_field_node)

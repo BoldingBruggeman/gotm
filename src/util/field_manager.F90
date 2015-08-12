@@ -89,6 +89,7 @@ module field_manager
       integer                      :: output_level = output_level_none
    contains
       procedure :: get_all_fields
+      procedure :: has_fields
    end type
 
    type type_field_manager
@@ -309,6 +310,25 @@ contains
          child => child%next_sibling
       end do
    end subroutine get_all_fields
+
+   recursive logical function has_fields(self)
+      class (type_category_node), intent(inout) :: self
+
+      class (type_node), pointer :: child
+
+      has_fields = .true.
+      child => self%first_child
+      do while (associated(child))
+         select type (child)
+         class is (type_category_node)
+            if (child%has_fields()) return
+         class is (type_field_node)
+            return
+         end select
+         child => child%next_sibling
+      end do
+      has_fields = .false.
+   end function has_fields
 
    function find(self,name,create) result(field)
       class (type_field_manager),intent(inout) :: self
