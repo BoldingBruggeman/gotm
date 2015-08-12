@@ -227,7 +227,7 @@ contains
 
    function find(self,field) result(output_field)
       class (type_file),intent(inout) :: self
-      class (type_field), target      :: field
+      type (type_field), target       :: field
       class (type_output_field),pointer :: output_field
 
       output_field => self%first_field
