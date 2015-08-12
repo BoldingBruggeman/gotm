@@ -244,8 +244,15 @@ contains
 
       current => self%first_field
       do while (associated(current))
-         if (current%output_name==output_field%output_name) &
-            call host%fatal_error('append','output field with name "'//trim(output_field%output_name)//'" already exists.')
+         if (current%output_name==output_field%output_name) then
+            if (current%time_method==output_field%time_method .and. associated(current%source,output_field%source)) then
+               ! The exact same output field already exists. Deallocate the new field and return a pointer to the old.
+               deallocate(output_field)
+               output_field => current
+               return
+            end if
+            call host%fatal_error('append','A different output field with name "'//trim(output_field%output_name)//'" already exists.')
+         end if
          current => current%next
       end do
 
