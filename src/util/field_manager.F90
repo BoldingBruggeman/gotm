@@ -158,7 +158,7 @@ contains
          dim%iterator = 'i'
       case (id_dim_lat)
          dim%iterator = 'j'
-      case (id_dim_z)
+      case (id_dim_z,id_dim_z1)
          dim%iterator = 'k'
       end select
 
