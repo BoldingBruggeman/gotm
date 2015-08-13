@@ -385,6 +385,10 @@ contains
       class (type_file),pointer :: file
       character(len=string_length) :: string
 
+      type (type_dimension),       pointer :: dim
+      type (type_output_dimension),pointer :: output_dim
+      character(len=8)                     :: strmax
+
       ! Create file object and prepend to list.
       allocate(type_netcdf_file::file)
       file%field_manager => field_manager
@@ -426,42 +430,30 @@ contains
       if (string/='') call read_time_string(trim(string),file%last_julian,file%last_seconds)
 
       ! Determine dimension ranges
-      call configure_dimension(id_dim_lon,'i')
-      call configure_dimension(id_dim_lat,'j')
-      call configure_dimension(id_dim_z,  'k')
-
-      ! Allow specific file implementation to parse additional settings from yaml file.
-      call file%configure(mapping)
-
-      call process_group(file,mapping,time_method_instantaneous)
-
-   contains
-
-      subroutine configure_dimension(dimid,symbol)
-         integer,         intent(in) :: dimid
-         character(len=1),intent(in) :: symbol
-
-         type (type_dimension),       pointer :: dim
-         type (type_output_dimension),pointer :: output_dim
-         character(len=8)                     :: strmax
-
-         dim => field_manager%find_dimension(dimid)
-         if (associated(dim)) then
+      dim => field_manager%first_dimension
+      do while (associated(dim))
+         if (dim%iterator/='') then
             write (strmax,'(i0)') dim%global_length
             output_dim => file%get_dimension(dim)
-            output_dim%start = mapping%get_integer(trim(symbol)//'_start',default=1,error=config_error)
+            output_dim%start = mapping%get_integer(trim(dim%iterator)//'_start',default=1,error=config_error)
             if (associated(config_error)) call host%fatal_error('process_file',config_error%message)
-            if (output_dim%start<1.or.output_dim%start>dim%global_length) call host%fatal_error('process_file',trim(symbol)//'_start must lie between 1 and '//trim(strmax))
-            output_dim%stop = mapping%get_integer(trim(symbol)//'_stop',default=dim%global_length,error=config_error)
+            if (output_dim%start<1.or.output_dim%start>dim%global_length) call host%fatal_error('process_file',trim(dim%iterator)//'_start must lie between 1 and '//trim(strmax))
+            output_dim%stop = mapping%get_integer(trim(dim%iterator)//'_stop',default=dim%global_length,error=config_error)
             if (associated(config_error)) call host%fatal_error('process_file',config_error%message)
-            if (output_dim%stop<1.or.output_dim%stop>dim%global_length) call host%fatal_error('process_file',trim(symbol)//'_stop must lie between 1 and '//trim(strmax))
-            if (output_dim%start>output_dim%stop) call host%fatal_error('process_file',trim(symbol)//'_stop must equal or exceed '//trim(symbol)//'_start')
+            if (output_dim%stop<1.or.output_dim%stop>dim%global_length) call host%fatal_error('process_file',trim(dim%iterator)//'_stop must lie between 1 and '//trim(strmax))
+            if (output_dim%start>output_dim%stop) call host%fatal_error('process_file',trim(dim%iterator)//'_stop must equal or exceed '//trim(dim%iterator)//'_start')
 
             ! Adjust start and stop according to dimension offset [subdomain]
             output_dim%start = max(output_dim%start - output_dim%source%offset, 1)
             output_dim%stop = max(output_dim%stop - output_dim%source%offset, 0)
          end if
-      end subroutine configure_dimension
+         dim => dim%next
+      end do
+
+      ! Allow specific file implementation to parse additional settings from yaml file.
+      call file%configure(mapping)
+
+      call process_group(file,mapping,time_method_instantaneous)
 
    end subroutine process_file
 

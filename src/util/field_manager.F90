@@ -42,6 +42,7 @@ module field_manager
 
    type type_dimension
       character(len=string_length)   :: name = ''
+      character(len=string_length)   :: iterator = ''
       integer                        :: length = -1
       integer                        :: global_length = -1
       integer                        :: offset = 0
@@ -137,6 +138,9 @@ contains
       dim => self%first_dimension
       do while (associated(dim))
          if (dim%name==name) call fatal_error('register_dimension','dimension "'//trim(name)//'" has already been registered.')
+         if (present(id)) then
+            if (dim%id==id) call fatal_error('register_dimension','id specified for dimension '//trim(name)//' has already been assigned to '//trim(dim%name)//'.')
+         end if
          dim => dim%next
       end do
 
@@ -148,6 +152,15 @@ contains
       if (present(id)) dim%id = id
       dim%global_length = dim%length
       if (present(global_length)) dim%global_length = global_length
+
+      select case (dim%id)
+      case (id_dim_lon)
+         dim%iterator = 'i'
+      case (id_dim_lat)
+         dim%iterator = 'j'
+      case (id_dim_z)
+         dim%iterator = 'k'
+      end select
 
       ! Basic consistency checks
       if (dim%length<-1) call fatal_error('register_dimension','length for dimension '//trim(dim%name)//' must be -1 (unlimited) or more')
