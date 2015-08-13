@@ -434,6 +434,7 @@ contains
       type (type_dimension),       pointer :: dim
       type (type_output_dimension),pointer :: output_dim
       character(len=8)                     :: strmax
+      integer                              :: distance
 
       ! Create file object and prepend to list.
       allocate(type_netcdf_file::file)
@@ -502,7 +503,13 @@ contains
                   output_dim%start = output_dim%start - output_dim%source%offset
                else
                   ! Starting point lies before our subdomain: we start immediately but have to account for stride
-                  output_dim%start = output_dim%stride - mod(output_dim%source%offset + 1 - output_dim%start, output_dim%stride)
+
+                  ! Determine distance between subdomain start and nearest included point outside the domain.
+                  distance = mod(output_dim%source%offset + 1 - output_dim%start, output_dim%stride)
+
+                  ! Convert to distance to next point within the domain
+                  if (distance>0) distance = output_dim%stride - distance
+                  output_dim%start = 1 + distance
                end if
 
                ! Determine local stop by subtracting subdomain offset [maximum is subdomain length)
