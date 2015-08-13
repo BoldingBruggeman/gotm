@@ -99,8 +99,9 @@ module output_manager_core
 
    type type_output_dimension
       type (type_dimension), pointer :: source => null()
-      integer :: start = 1
-      integer :: stop  = -1
+      integer :: start  = 1
+      integer :: stop   = -1
+      integer :: stride = 1
       type (type_output_dimension), pointer :: next => null()
    end type type_output_dimension
 

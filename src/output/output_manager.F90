@@ -105,7 +105,7 @@ contains
       integer                               :: yyyy,mm,dd
       logical                               :: in_window
       type (type_output_dimension), pointer :: output_dim
-      integer, allocatable, dimension(:)    :: starts, stops
+      integer, allocatable, dimension(:)    :: starts, stops, strides
       integer                               :: i,j
 
       file => first_file
@@ -159,6 +159,7 @@ contains
                   ! Determine effective dimension range
                   allocate(starts(1:size(output_field%source%dimensions)))
                   allocate(stops(1:size(output_field%source%dimensions)))
+                  allocate(strides(1:size(output_field%source%dimensions)))
                   j = 0
                   do i=1,size(output_field%source%dimensions)
                      output_dim => file%get_dimension(output_field%source%dimensions(i)%p)
@@ -167,26 +168,27 @@ contains
                         j = j + 1
                         starts(j) = output_dim%start
                         stops(j) = output_dim%stop
+                        strides(j) = output_dim%stride
                      end if
                   end do
 
                   ! Select appropriate data slice
                   if (associated(output_field%source%data_3d)) then
                      if (j/=3) call host%fatal_error('output_manager_save','BUG: data of '//trim(output_field%source%name)//' contains one or more singleton dimensions.')
-                     output_field%source_3d => output_field%source%data_3d(starts(1):stops(1),starts(2):stops(2),starts(3):stops(3))
+                     output_field%source_3d => output_field%source%data_3d(starts(1):stops(1):strides(1),starts(2):stops(2):strides(2),starts(3):stops(3):strides(3))
                   elseif (associated(output_field%source%data_2d)) then
                      if (j/=2) call host%fatal_error('output_manager_save','BUG: data of '//trim(output_field%source%name)//' contains one or more singleton dimensions.')
-                     output_field%source_2d => output_field%source%data_2d(starts(1):stops(1),starts(2):stops(2))
+                     output_field%source_2d => output_field%source%data_2d(starts(1):stops(1):strides(1),starts(2):stops(2):strides(2))
                   elseif (associated(output_field%source%data_1d)) then                  
                      if (j/=1) call host%fatal_error('output_manager_save','BUG: data of '//trim(output_field%source%name)//' contains one or more singleton dimensions.')
-                     output_field%source_1d => output_field%source%data_1d(starts(1):stops(1))
+                     output_field%source_1d => output_field%source%data_1d(starts(1):stops(1):strides(1))
                   else
                      if (j/=0) call host%fatal_error('output_manager_save','BUG: data of '//trim(output_field%source%name)//' contains one or more singleton dimensions.')
                      output_field%source_0d => output_field%source%data_0d
                   end if
 
                   ! Deallocate dimension range specifyers.
-                  deallocate(starts,stops)
+                  deallocate(starts,stops,strides)
 
                   ! Store instantaneous data by default.
                   output_field%data_0d => output_field%source_0d
