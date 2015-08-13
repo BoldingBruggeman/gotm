@@ -444,10 +444,29 @@ contains
             if (associated(config_error)) call host%fatal_error('process_file',config_error%message)
             if (output_dim%stop<1.or.output_dim%stop>dim%global_length) call host%fatal_error('process_file',trim(dim%iterator)//'_stop must lie between 1 and '//trim(strmax))
             if (output_dim%start>output_dim%stop) call host%fatal_error('process_file',trim(dim%iterator)//'_stop must equal or exceed '//trim(dim%iterator)//'_start')
+            output_dim%stride = mapping%get_integer(trim(dim%iterator)//'_stride',default=1,error=config_error)
+            if (associated(config_error)) call host%fatal_error('process_file',config_error%message)
+            if (output_dim%stride<1) call host%fatal_error('process_file',trim(dim%iterator)//'_stride must be larger than 0.')
 
-            ! Adjust start and stop according to dimension offset [subdomain]
-            output_dim%start = max(output_dim%start - output_dim%source%offset, 1)
-            output_dim%stop = max(output_dim%stop - output_dim%source%offset, 0)
+            if (output_dim%start>output_dim%source%offset+dim%length) then
+               ! Start point lies beyond our subdomain
+               output_dim%start = 1
+               output_dim%stop = 0
+            else
+               if (output_dim%start>output_dim%source%offset) then
+                  ! Starting point lies within our subdomain
+                  output_dim%start = output_dim%start - output_dim%source%offset
+               else
+                  ! Starting point lies before our subdomain: we start immediately but have to account for stride
+                  output_dim%start = output_dim%stride - mod(output_dim%source%offset + 1 - output_dim%start, output_dim%stride)
+               end if
+
+               ! Determine local stop by subtracting subdomain offset [constrain between start-1 and subdomain length)
+               output_dim%stop = min(max(output_dim%stop - output_dim%source%offset, output_dim%start-1), dim%length)
+
+               ! Reduce stop to last point that is actually included (due to stride>1)
+               if (output_dim%stop>output_dim%start) output_dim%stop = output_dim%stop - mod(output_dim%stop-output_dim%start,output_dim%stride)
+            end if
          end if
          dim => dim%next
       end do

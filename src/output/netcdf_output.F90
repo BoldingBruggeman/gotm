@@ -90,7 +90,7 @@ contains
             dim_id%output_dimension => self%get_dimension(dim)
             dim_id%next => first_dim_id
             first_dim_id => dim_id
-            length = dim_id%output_dimension%stop-dim_id%output_dimension%start+1
+            length = (dim_id%output_dimension%stop-dim_id%output_dimension%start)/dim_id%output_dimension%stride+1
             if (dim%length==-1) length = NF90_UNLIMITED
             iret = nf90_def_dim(self%ncid, trim(dim%name), length, dim_id%netcdf_dimid); call check_err(iret)
          end if
@@ -153,7 +153,7 @@ contains
                else
                   output_dimension => self%get_dimension(output_field%source%dimensions(i)%p)
                   output_field%start(i) = 1
-                  output_field%edges(i) = output_dimension%stop-output_dimension%start+1
+                  output_field%edges(i) = (output_dimension%stop-output_dimension%start)/output_dimension%stride+1
                end if
             end do
          end select   
