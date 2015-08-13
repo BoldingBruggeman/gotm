@@ -99,9 +99,11 @@ module output_manager_core
 
    type type_output_dimension
       type (type_dimension), pointer :: source => null()
-      integer :: start  = 1
-      integer :: stop   = -1
-      integer :: stride = 1
+      integer :: start        = 1
+      integer :: stop         = -1
+      integer :: stride       = 1
+      integer :: global_start = 1
+      integer :: global_stop  = -1
       type (type_output_dimension), pointer :: next => null()
    end type type_output_dimension
 
@@ -287,6 +289,7 @@ contains
       self%first_dimension => output_dimension
       output_dimension%source => dim
       output_dimension%stop = dim%length
+      output_dimension%global_stop = dim%global_length
    end function get_dimension
 
 end module output_manager_core

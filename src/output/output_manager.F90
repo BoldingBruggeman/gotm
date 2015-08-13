@@ -482,30 +482,34 @@ contains
          if (dim%iterator/='') then
             write (strmax,'(i0)') dim%global_length
             output_dim => file%get_dimension(dim)
-            output_dim%start = mapping%get_integer(trim(dim%iterator)//'_start',default=1,error=config_error)
+            output_dim%global_start = mapping%get_integer(trim(dim%iterator)//'_start',default=1,error=config_error)
             if (associated(config_error)) call host%fatal_error('process_file',config_error%message)
-            if (output_dim%start<1.or.output_dim%start>dim%global_length) call host%fatal_error('process_file',trim(dim%iterator)//'_start must lie between 1 and '//trim(strmax))
-            output_dim%stop = mapping%get_integer(trim(dim%iterator)//'_stop',default=dim%global_length,error=config_error)
+            if (output_dim%global_start<1.or.output_dim%global_start>dim%global_length) call host%fatal_error('process_file',trim(dim%iterator)//'_start must lie between 1 and '//trim(strmax))
+            output_dim%global_stop = mapping%get_integer(trim(dim%iterator)//'_stop',default=dim%global_length,error=config_error)
             if (associated(config_error)) call host%fatal_error('process_file',config_error%message)
-            if (output_dim%stop<1.or.output_dim%stop>dim%global_length) call host%fatal_error('process_file',trim(dim%iterator)//'_stop must lie between 1 and '//trim(strmax))
-            if (output_dim%start>output_dim%stop) call host%fatal_error('process_file',trim(dim%iterator)//'_stop must equal or exceed '//trim(dim%iterator)//'_start')
+            if (output_dim%global_stop<1.or.output_dim%global_stop>dim%global_length) call host%fatal_error('process_file',trim(dim%iterator)//'_stop must lie between 1 and '//trim(strmax))
+            if (output_dim%global_start>output_dim%global_stop) call host%fatal_error('process_file',trim(dim%iterator)//'_stop must equal or exceed '//trim(dim%iterator)//'_start')
             output_dim%stride = mapping%get_integer(trim(dim%iterator)//'_stride',default=1,error=config_error)
             if (associated(config_error)) call host%fatal_error('process_file',config_error%message)
             if (output_dim%stride<1) call host%fatal_error('process_file',trim(dim%iterator)//'_stride must be larger than 0.')
 
-            if (output_dim%start>output_dim%source%offset+dim%length) then
+            ! Reduce stop to last point that is actually included (due to stride>1)
+            output_dim%global_stop = output_dim%global_stop - mod(output_dim%global_stop-output_dim%global_start,output_dim%stride)
+
+            ! Compute local [i.e., within-subdomain] start and stop positons from global positions and local offset.
+            if (output_dim%global_start>output_dim%source%offset+dim%length) then
                ! Start point lies beyond our subdomain
                output_dim%start = 1
                output_dim%stop = output_dim%start - output_dim%stride
             else
-               if (output_dim%start>output_dim%source%offset) then
+               if (output_dim%global_start>output_dim%source%offset) then
                   ! Starting point lies within our subdomain
-                  output_dim%start = output_dim%start - output_dim%source%offset
+                  output_dim%start = output_dim%global_start - output_dim%source%offset
                else
                   ! Starting point lies before our subdomain: we start immediately but have to account for stride
 
                   ! Determine distance between subdomain start and nearest included point outside the domain.
-                  distance = mod(output_dim%source%offset + 1 - output_dim%start, output_dim%stride)
+                  distance = mod(output_dim%source%offset + 1 - output_dim%global_start, output_dim%stride)
 
                   ! Convert to distance to next point within the domain
                   if (distance>0) distance = output_dim%stride - distance
@@ -513,7 +517,7 @@ contains
                end if
 
                ! Determine local stop by subtracting subdomain offset [maximum is subdomain length)
-               output_dim%stop = min(output_dim%stop - output_dim%source%offset, dim%length)
+               output_dim%stop = min(output_dim%global_stop - output_dim%source%offset, dim%length)
 
                if (output_dim%stop<output_dim%start) then
                   ! stop precedes start, so we have 0 length, i.e.,
