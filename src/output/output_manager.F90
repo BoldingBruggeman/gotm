@@ -451,7 +451,7 @@ contains
             if (output_dim%start>output_dim%source%offset+dim%length) then
                ! Start point lies beyond our subdomain
                output_dim%start = 1
-               output_dim%stop = 0
+               output_dim%stop = output_dim%start - output_dim%stride
             else
                if (output_dim%start>output_dim%source%offset) then
                   ! Starting point lies within our subdomain
@@ -461,11 +461,17 @@ contains
                   output_dim%start = output_dim%stride - mod(output_dim%source%offset + 1 - output_dim%start, output_dim%stride)
                end if
 
-               ! Determine local stop by subtracting subdomain offset [constrain between start-1 and subdomain length)
-               output_dim%stop = min(max(output_dim%stop - output_dim%source%offset, output_dim%start-1), dim%length)
+               ! Determine local stop by subtracting subdomain offset [maximum is subdomain length)
+               output_dim%stop = min(output_dim%stop - output_dim%source%offset, dim%length)
 
-               ! Reduce stop to last point that is actually included (due to stride>1)
-               if (output_dim%stop>output_dim%start) output_dim%stop = output_dim%stop - mod(output_dim%stop-output_dim%start,output_dim%stride)
+               if (output_dim%stop<output_dim%start) then
+                  ! stop precedes start, so we have 0 length, i.e.,
+                  ! length = (output_dimension%stop-output_dimension%start)/output_dimension%stride + 1 = 0
+                  output_dim%stop = output_dim%start - output_dim%stride
+               else
+                  ! Reduce stop to last point that is actually included (due to stride>1)
+                  output_dim%stop = output_dim%stop - mod(output_dim%stop-output_dim%start,output_dim%stride)
+               end if
             end if
          end if
          dim => dim%next
