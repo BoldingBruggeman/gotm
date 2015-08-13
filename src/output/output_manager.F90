@@ -204,10 +204,10 @@ contains
                   allocate(strides(1:size(output_field%source%dimensions)))
                   j = 0
                   do i=1,size(output_field%source%dimensions)
-                     output_dim => file%get_dimension(output_field%source%dimensions(i)%p)
-                     if (output_dim%source%length>1) then
+                     if (output_field%source%dimensions(i)%p%length>1) then
                         ! Not a singleton dimension - create the slice spec
                         j = j + 1
+                        output_dim => file%get_dimension(output_field%source%dimensions(i)%p)
                         starts(j) = output_dim%start
                         stops(j) = output_dim%stop
                         strides(j) = output_dim%stride
@@ -497,19 +497,19 @@ contains
             output_dim%global_stop = output_dim%global_stop - mod(output_dim%global_stop-output_dim%global_start,output_dim%stride)
 
             ! Compute local [i.e., within-subdomain] start and stop positons from global positions and local offset.
-            if (output_dim%global_start>output_dim%source%offset+dim%length) then
+            if (output_dim%global_start>dim%offset+dim%length) then
                ! Start point lies beyond our subdomain
                output_dim%start = 1
                output_dim%stop = output_dim%start - output_dim%stride
             else
-               if (output_dim%global_start>output_dim%source%offset) then
+               if (output_dim%global_start>dim%offset) then
                   ! Starting point lies within our subdomain
-                  output_dim%start = output_dim%global_start - output_dim%source%offset
+                  output_dim%start = output_dim%global_start - dim%offset
                else
                   ! Starting point lies before our subdomain: we start immediately but have to account for stride
 
                   ! Determine distance between subdomain start and nearest included point outside the domain.
-                  distance = mod(output_dim%source%offset + 1 - output_dim%global_start, output_dim%stride)
+                  distance = mod(dim%offset + 1 - output_dim%global_start, output_dim%stride)
 
                   ! Convert to distance to next point within the domain
                   if (distance>0) distance = output_dim%stride - distance
@@ -517,7 +517,7 @@ contains
                end if
 
                ! Determine local stop by subtracting subdomain offset [maximum is subdomain length)
-               output_dim%stop = min(output_dim%global_stop - output_dim%source%offset, dim%length)
+               output_dim%stop = min(output_dim%global_stop - dim%offset, dim%length)
 
                if (output_dim%stop<output_dim%start) then
                   ! stop precedes start, so we have 0 length, i.e.,
