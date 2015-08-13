@@ -95,8 +95,11 @@ contains
             dim_id%output_dimension => self%get_dimension(dim)
             dim_id%next => first_dim_id
             first_dim_id => dim_id
-            length = (dim_id%output_dimension%stop-dim_id%output_dimension%start)/dim_id%output_dimension%stride+1
-            if (dim%length==-1) length = NF90_UNLIMITED
+            if (dim%id==id_dim_time) then
+               length = NF90_UNLIMITED
+            else
+               length = (dim_id%output_dimension%stop-dim_id%output_dimension%start)/dim_id%output_dimension%stride+1
+            end if
             iret = nf90_def_dim(self%ncid, trim(dim%name), length, dim_id%netcdf_dimid); call check_err(iret)
          end if
          dim => dim%next
@@ -151,7 +154,7 @@ contains
             allocate(output_field%start(size(output_field%source%dimensions)))
             allocate(output_field%edges(size(output_field%source%dimensions)))
             do i=1,size(output_field%source%dimensions)
-               if (output_field%source%dimensions(i)%p%length==-1) then
+               if (output_field%source%dimensions(i)%p%id==id_dim_time) then
                   output_field%start(i) = self%itime
                   output_field%edges(i) = 1
                   output_field%itimedim = i
