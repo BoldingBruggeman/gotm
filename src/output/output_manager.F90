@@ -71,6 +71,45 @@ contains
       end do
    end subroutine collect_from_categories
 
+   subroutine filter_variables(file)
+      class (type_file), intent(inout) :: file
+
+      integer :: i
+      class (type_output_field),    pointer :: output_field, next_field, previous_field
+      type (type_output_dimension), pointer :: output_dim
+      logical :: empty
+
+      previous_field => null()
+      output_field => file%first_field
+      do while (associated(output_field))
+         next_field => output_field%next
+
+         ! Determine whether the field is empty (one or more zero-length dimensions)
+         empty = .false.
+         do i=1,size(output_field%source%dimensions)
+            if (output_field%source%dimensions(i)%p%id/=id_dim_time) then
+               output_dim => file%get_dimension(output_field%source%dimensions(i)%p)
+               if (output_dim%stop<output_dim%start) empty = .true.
+            end if
+         end do
+
+         if (empty) then
+            ! Empty field - deallocate and remove from list.
+            deallocate(output_field)
+            if (.not.associated(previous_field)) then
+               file%first_field => next_field
+            else
+               previous_field%next => next_field
+            end if
+         else
+            ! Non-empty field - keep it.
+            previous_field => output_field
+         end if
+
+         output_field => next_field
+      end do
+   end subroutine filter_variables
+
    subroutine add_coordinate_variables(file)
       class (type_file), intent(inout) :: file
 
@@ -122,6 +161,9 @@ contains
             if (file%next_julian==-1) then
                ! Add variables below selected categories to output
                call collect_from_categories(file)
+
+               ! Remove empty variables (with one or more zero-length dimensions)
+               call filter_variables(file)
 
                ! Add any missing coordinate variables
                call add_coordinate_variables(file)

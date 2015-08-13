@@ -72,6 +72,11 @@ contains
       end type
       type (type_dimension_ids), pointer :: first_dim_id, dim_id
 
+      if (.not.associated(self%first_field)) then
+         call host%log_message('NOTE: "'//trim(self%path)//trim(self%postfix)//'.nc" will not be created because it would contain no data.')
+         return
+      end if
+
       ! If no reference time is configured (to be used in time units), use time of first output.
       if (self%reference_julian==-1) then
          self%reference_julian  = self%first_julian
@@ -189,6 +194,8 @@ contains
       integer                            :: iret
       real(ncrk)                         :: temp_time
 
+      if (self%ncid==-1) return
+
       ! Increment time index
       self%itime = self%itime + 1
 
@@ -226,7 +233,9 @@ contains
    subroutine finalize(file)
       class (type_netcdf_file),intent(inout) :: file
       integer :: iret
-      iret = nf90_close(file%ncid); call check_err(iret)
+      if (file%ncid/=-1) then
+         iret = nf90_close(file%ncid); call check_err(iret)
+      end if
    end subroutine finalize
 
    subroutine check_err(iret)
