@@ -172,19 +172,21 @@ contains
                      end if
                   end do
 
-                  ! Select appropriate data slice
-                  if (associated(output_field%source%data_3d)) then
-                     if (j/=3) call host%fatal_error('output_manager_save','BUG: data of '//trim(output_field%source%name)//' contains one or more singleton dimensions.')
-                     output_field%source_3d => output_field%source%data_3d(starts(1):stops(1):strides(1),starts(2):stops(2):strides(2),starts(3):stops(3):strides(3))
-                  elseif (associated(output_field%source%data_2d)) then
-                     if (j/=2) call host%fatal_error('output_manager_save','BUG: data of '//trim(output_field%source%name)//' contains one or more singleton dimensions.')
-                     output_field%source_2d => output_field%source%data_2d(starts(1):stops(1):strides(1),starts(2):stops(2):strides(2))
-                  elseif (associated(output_field%source%data_1d)) then                  
-                     if (j/=1) call host%fatal_error('output_manager_save','BUG: data of '//trim(output_field%source%name)//' contains one or more singleton dimensions.')
-                     output_field%source_1d => output_field%source%data_1d(starts(1):stops(1):strides(1))
-                  else
-                     if (j/=0) call host%fatal_error('output_manager_save','BUG: data of '//trim(output_field%source%name)//' contains one or more singleton dimensions.')
-                     output_field%source_0d => output_field%source%data_0d
+                  if (all(stops(1:j)>=starts(1:j))) then
+                     ! Select appropriate data slice
+                     if (associated(output_field%source%data_3d)) then
+                        if (j/=3) call host%fatal_error('output_manager_save','BUG: data of '//trim(output_field%source%name)//' contains one or more singleton dimensions.')
+                        output_field%source_3d => output_field%source%data_3d(starts(1):stops(1):strides(1),starts(2):stops(2):strides(2),starts(3):stops(3):strides(3))
+                     elseif (associated(output_field%source%data_2d)) then
+                        if (j/=2) call host%fatal_error('output_manager_save','BUG: data of '//trim(output_field%source%name)//' contains one or more singleton dimensions.')
+                        output_field%source_2d => output_field%source%data_2d(starts(1):stops(1):strides(1),starts(2):stops(2):strides(2))
+                     elseif (associated(output_field%source%data_1d)) then                  
+                        if (j/=1) call host%fatal_error('output_manager_save','BUG: data of '//trim(output_field%source%name)//' contains one or more singleton dimensions.')
+                        output_field%source_1d => output_field%source%data_1d(starts(1):stops(1):strides(1))
+                     else
+                        if (j/=0) call host%fatal_error('output_manager_save','BUG: data of '//trim(output_field%source%name)//' contains one or more singleton dimensions.')
+                        output_field%source_0d => output_field%source%data_0d
+                     end if
                   end if
 
                   ! Deallocate dimension range specifyers.
@@ -207,7 +209,7 @@ contains
                      elseif (associated(output_field%source_1d)) then
                         allocate(output_field%work_1d(size(output_field%source_1d)))
                         output_field%data_1d => output_field%work_1d
-                     else
+                     elseif (associated(output_field%source_0d)) then
                         output_field%data_0d => output_field%work_0d
                      end if
                   end if
@@ -221,7 +223,7 @@ contains
                            output_field%work_2d(:,:) = output_field%source_2d
                         elseif (associated(output_field%source_1d)) then
                            output_field%work_1d(:) = output_field%source_1d
-                        else
+                        elseif (associated(output_field%source_0d)) then
                            output_field%work_0d = output_field%source_0d
                         end if
                      case (time_method_integrated)
@@ -232,7 +234,7 @@ contains
                            output_field%work_2d(:,:) = 0.0_rk
                         elseif (associated(output_field%source_1d)) then
                            output_field%work_1d(:) = 0.0_rk
-                        else
+                        elseif (associated(output_field%source_0d)) then
                            output_field%work_0d = 0.0_rk
                         end if
                   end select
@@ -244,13 +246,13 @@ contains
                do while (associated(output_field))
                   if (output_field%time_method==time_method_mean) then
                      ! This is a time-integrated field that needs to be incremented.
-                     if (allocated(output_field%work_3d)) then
+                     if (associated(output_field%source_3d)) then
                         output_field%work_3d(:,:,:) = output_field%work_3d/file%n
-                     elseif (allocated(output_field%work_2d)) then
+                     elseif (associated(output_field%source_2d)) then
                         output_field%work_2d(:,:) = output_field%work_2d/file%n
-                     elseif (allocated(output_field%work_1d)) then
+                     elseif (associated(output_field%source_1d)) then
                         output_field%work_1d(:) = output_field%work_1d/file%n
-                     else
+                     elseif (associated(output_field%source_0d)) then
                         output_field%work_0d = output_field%work_0d/file%n
                      end if
                   end if
@@ -292,13 +294,13 @@ contains
             output_field => file%first_field
             do while (associated(output_field))
                if (output_field%time_method==time_method_mean) then
-                  if (allocated(output_field%work_3d)) then
+                  if (associated(output_field%source_3d)) then
                      output_field%work_3d(:,:,:) = 0.0_rk
-                  elseif (allocated(output_field%work_2d)) then
+                  elseif (associated(output_field%source_2d)) then
                      output_field%work_2d(:,:) = 0.0_rk
-                  elseif (allocated(output_field%work_1d)) then
+                  elseif (associated(output_field%source_1d)) then
                      output_field%work_1d(:) = 0.0_rk
-                  else
+                  elseif (associated(output_field%source_0d)) then
                      output_field%work_0d = 0.0_rk
                   end if
                end if
@@ -312,13 +314,13 @@ contains
             select case (output_field%time_method)
                case (time_method_mean,time_method_integrated)
                   ! This is a time-integrated field that needs to be incremented.
-                  if (allocated(output_field%work_3d)) then
+                  if (associated(output_field%source_3d)) then
                      output_field%work_3d(:,:,:) = output_field%work_3d + output_field%source_3d
-                  elseif (allocated(output_field%work_2d)) then
+                  elseif (associated(output_field%source_2d)) then
                      output_field%work_2d(:,:) = output_field%work_2d + output_field%source_2d
-                  elseif (allocated(output_field%work_1d)) then
+                  elseif (associated(output_field%source_1d)) then
                      output_field%work_1d(:) = output_field%work_1d + output_field%source_1d
-                  else
+                  elseif (associated(output_field%source_0d)) then
                      output_field%work_0d = output_field%work_0d + output_field%source_0d
                   end if
             end select

@@ -203,13 +203,13 @@ contains
          select type (output_field)
          class is (type_netcdf_field)
             if (output_field%itimedim/=-1) output_field%start(output_field%itimedim) = self%itime
-            if (associated(output_field%source_3d)) then
+            if (associated(output_field%data_3d)) then
                iret = nf90_put_var(self%ncid,output_field%varid,output_field%data_3d,output_field%start,output_field%edges)
-            elseif (associated(output_field%source_2d)) then
+            elseif (associated(output_field%data_2d)) then
                iret = nf90_put_var(self%ncid,output_field%varid,output_field%data_2d,output_field%start,output_field%edges)
-            elseif (associated(output_field%source_1d)) then
+            elseif (associated(output_field%data_1d)) then
                iret = nf90_put_var(self%ncid,output_field%varid,output_field%data_1d,output_field%start,output_field%edges)
-            else
+            elseif (associated(output_field%data_0d)) then
                iret = nf90_put_var(self%ncid,output_field%varid,output_field%data_0d,output_field%start)
             end if
             call check_err(iret)
