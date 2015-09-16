@@ -163,12 +163,11 @@ if(GOTM_USE_FABM)
     add_subdirectory(${FABM_BASE}/src fabm_src)
     set(FABM_LIBRARIES fabm)
     set(FABM_INCLUDE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/fabm_src/modules)
-    mark_as_advanced(FORCE FABM_PREFIX)
   else()
     # Use FABM_PREFIX to locate include and lib directories
-    mark_as_advanced(CLEAR FABM_PREFIX)
     find_package(FABM REQUIRED)
   endif()
+  mark_as_advanced(FORCE FABM_PREFIX)
   add_library(gotm_fabm
               fabm/gotm_fabm.F90
              )
@@ -365,6 +364,13 @@ add_executable(test_airsea EXCLUDE_FROM_ALL
                $<TARGET_OBJECTS:input>
               )
 target_link_libraries(test_airsea util)
+
+add_executable(test_albedo EXCLUDE_FROM_ALL
+               airsea/test_albedo.F90
+               $<TARGET_OBJECTS:airsea>
+               $<TARGET_OBJECTS:input>
+              )
+target_link_libraries(test_albedo util)
 
 add_executable(test_eqstate EXCLUDE_FROM_ALL
                util/test_eqstate.F90
