@@ -50,7 +50,7 @@ if(GOTM_USE_FLEXIBLE_OUTPUT)
   add_definitions(-D_FLEXIBLE_OUTPUT_)
 endif()
 
-#KBif(NOT GOTM_BUILD_LIBRARIES_ONLY)
+if(NOT GOTM_BUILD_LIBRARIES_ONLY)
   option(GOTM_USE_NetCDF "Enable output in NetCDF format" ON)
   if(GOTM_USE_NetCDF)
     find_package(NetCDF REQUIRED)
@@ -62,7 +62,7 @@ endif()
       add_compile_options("/libs:static")
     endif()
   endif(GOTM_USE_NetCDF)
-#KBendif(NOT GOTM_BUILD_LIBRARIES_ONLY)
+endif(NOT GOTM_BUILD_LIBRARIES_ONLY)
 
 # Global include directories
 include_directories(BEFORE "${CMAKE_BINARY_DIR}"
@@ -195,8 +195,6 @@ else()
   mark_as_advanced(FORCE FABM_PREFIX FABM_BASE)
 endif(GOTM_USE_FABM)
 
-#KBif(NOT GOTM_BUILD_LIBRARIES_ONLY)
-
 if(NOT GOTM_BUILD_LIBRARIES_ONLY)
 
 add_library(input OBJECT
@@ -253,7 +251,7 @@ if(NOT GOTM_USE_FLEXIBLE_OUTPUT)
              )
   add_dependencies(output util meanflow turbulence observations airsea)
   set_property(TARGET output PROPERTY FOLDER gotm)
-endif()
+endif(GOTM_USE_FLEXIBLE_OUTPUT)
 
 add_library(gotm OBJECT
             gotm/gotm.F90
