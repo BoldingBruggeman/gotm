@@ -233,8 +233,8 @@
    IMPLICIT NONE
 !
 ! !INPUT PARAMETERS:
-   integer, intent(in)                      :: namlst
-   REALTYPE, intent(in)                     :: lat,lon
+   integer, intent(in)                 :: namlst
+   REALTYPE, intent(in)                :: lat,lon
 !
 ! !REVISION HISTORY:
 !  Original author(s): Karsten Bolding
@@ -299,6 +299,11 @@
 !  cloud cover
    cloud = _ZERO_
 
+!  relative humidity (various measures)
+   twet = _ZERO_
+   tdew = _ZERO_
+   rh   = _ZERO_
+
 !  air temperature
    airt = _ZERO_
 
@@ -322,7 +327,7 @@
    bio_albedo     = _ZERO_
 
 !  initialize integrated freshwater and heat fluxes
-   int_precip = _ZERO_
+   int_precip= _ZERO_
    int_evap  = _ZERO_
    int_fwf   = _ZERO_
    int_swr   = _ZERO_
@@ -368,11 +373,6 @@
    open(namlst,file='airsea.nml',action='read',status='old',err=90)
    read(namlst,nml=airsea,err=91)
    close(namlst)
-
-!  relative humidity (various measures)
-   rh   = _ZERO_
-   twet = _ZERO_
-   tdew = _ZERO_
 
 !  The short wave radiation
    select case (swr_method)
