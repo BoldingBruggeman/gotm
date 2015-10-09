@@ -33,6 +33,16 @@
 !  \end{itemize}
 !
 ! !USES:
+   use field_manager
+   use register_all_variables, only: do_register_all_variables, fm
+#if defined(_FLEXIBLE_OUTPUT_)
+   use output_manager_core, only:output_manager_host=>host, type_output_manager_host=>type_host
+   use output_manager
+   use diagnostics
+#else
+   use output
+#endif
+
    use meanflow
    use input
    use observations
@@ -71,10 +81,10 @@
    use gotm_fabm,only:init_gotm_fabm,init_gotm_fabm_state,set_env_gotm_fabm,do_gotm_fabm,clean_gotm_fabm,fabm_calc
    use gotm_fabm,only:model_fabm=>model,standard_variables_fabm=>standard_variables
    use gotm_fabm_input,only:init_gotm_fabm_input
+#if !defined(_FLEXIBLE_OUTPUT_)
    use gotm_fabm_output,only:init_gotm_fabm_output,do_gotm_fabm_output,clean_gotm_fabm_output
 #endif
-
-   use output
+#endif
 
    IMPLICIT NONE
    private
@@ -106,6 +116,14 @@
 !  station description
    character(len=80)         :: name
    REALTYPE,target           :: latitude,longitude
+
+#if defined(_FLEXIBLE_OUTPUT_)
+   type,extends(type_output_manager_host) :: type_gotm_host
+   contains
+      procedure :: julian_day => gotm_host_julian_day
+      procedure :: calendar_date => gotm_host_calendar_date
+   end type
+#endif
 !
 !-----------------------------------------------------------------------
 
@@ -144,8 +162,12 @@
    namelist /model_setup/ title,nlev,dt,cnpar,buoy_method
    namelist /station/     name,latitude,longitude,depth
    namelist /time/        timefmt,MaxN,start,stop
-   namelist /output/      out_fmt,out_dir,out_fn,nfirst,nsave,sync_out, &
+#if !defined(_FLEXIBLE_OUTPUT_)
+   namelist /output/      list_fields, &
+                          out_fmt,out_dir,out_fn,nfirst,nsave,sync_out, &
                           diagnostics,mld_method,diff_k,Ri_crit,rad_corr
+#endif
+   logical          ::    list_fields=.false.
    integer          ::    rc
 !
 !-----------------------------------------------------------------------
@@ -160,6 +182,7 @@
    zeta = _ZERO_
    w_adv_method = 0
 
+#if !defined(_FLEXIBLE_OUTPUT_)
 !  Initialize namelist parameters to reasonable defaults.
    out_fmt     = ASCII
    out_dir     = '.'
@@ -172,6 +195,7 @@
    diff_k      = 1.e-5
    Ri_crit     = 0.5
    rad_corr    = .true.
+#endif
 
 !  open the namelist file.
    LEVEL2 'reading model setup namelists..'
@@ -180,11 +204,13 @@
    read(namlst,nml=model_setup,err=91)
    read(namlst,nml=station,err=92)
    read(namlst,nml=time,err=93)
+#if !defined(_FLEXIBLE_OUTPUT_)
    read(namlst,nml=output,err=94)
 
    if (sync_out .lt. 0) then
       sync_out = 0
    end if
+#endif
 
    LEVEL2 'done.'
 
@@ -242,13 +268,19 @@
 
    call init_air_sea(namlst,latitude,longitude)
 
+   call do_register_all_variables(latitude,longitude,nlev)
+#if defined(_FLEXIBLE_OUTPUT_)
+   allocate(type_gotm_host::output_manager_host)
+   call output_manager_init(fm)
+#else
    call init_output(title,nlev,latitude,longitude)
+#endif
 
 !  initialize FABM module
 #ifdef _FABM_
 
 !  Initialize the GOTM-FABM coupler from its configuration file.
-   call init_gotm_fabm(nlev,namlst,'gotm_fabm.nml',dt)
+   call init_gotm_fabm(nlev,namlst,'gotm_fabm.nml',dt,fm)
 
 !  Link relevant GOTM data to FABM.
 !  This sets pointers, rather than copying data, and therefore needs to be done only once.
@@ -284,13 +316,17 @@
 !     to allow user-specified observed values to be used as initial state)
       call init_gotm_fabm_state(nlev)
 
+#if !defined(_FLEXIBLE_OUTPUT_)
 !     Initialize FABM output (creates NetCDF variables)
 !     This should be done after init_gotm_fabm_state is called, so the output module can compute
 !     initial conserved quantity integrals.
       call init_gotm_fabm_output(nlev)
+#endif
    end if
 
 #endif
+
+   if (list_fields) call fm%list()
 
    LEVEL2 'done.'
    STDERR LINE
@@ -352,24 +388,47 @@
 !EOP
 !
 ! !LOCAL VARIABLES:
-   integer(kind=timestepkind):: n
+   integer(kind=timestepkind):: n,progress
+   integer                   :: i
 
    REALTYPE                  :: tFlux,btFlux,sFlux,bsFlux
    REALTYPE                  :: tRad(0:nlev),bRad(0:nlev)
+   character(8)              :: d_
+   character(10)             :: t_
+
 !
 !-----------------------------------------------------------------------
 !BOC
+#if !defined(_FLEXIBLE_OUTPUT_)
    LEVEL1 'saving initial conditions'
    call prepare_output(0_timestepkind)
    if (write_results) then
       call do_all_output(0_timestepkind)
    end if
+#else
+   call output_manager_save(julianday,secondsofday,0)
+#endif
+   STDERR LINE
    LEVEL1 'time_loop'
+   progress = (MaxN-MinN+1)/10
+   i=0
    do n=MinN,MaxN
+
+      if(mod(n,progress) .eq. 0 .or. n .eq. MinN) then
+#if 0
+         call date_and_time(date=d_,time=t_)
+         LEVEL0 i,'%: ',t_(1:2),':',t_(3:4),':',t_(5:10)
+#else
+         LEVEL0 i,'%'
+#endif
+         i = i +10
+      end if
 
 !     prepare time and output
       call update_time(n)
+#if !defined(_FLEXIBLE_OUTPUT_)
       call prepare_output(n)
+#endif
 
 !     all observations/data
       call do_input(julianday,secondsofday,nlev,z)
@@ -387,6 +446,8 @@
 !     reset some quantities
       tx = tx/rho_0
       ty = ty/rho_0
+
+      call integrated_fluxes(dt)
 
 !     meanflow integration starts
       call updategrid(nlev,dt,zeta)
@@ -453,17 +514,19 @@
 # endif
       end select
 
+#if !defined(_FLEXIBLE_OUTPUT_)
 !     do the output
       if (write_results) then
          call do_all_output(n)
       end if
-
-      call integrated_fluxes(dt)
-
 !     diagnostic output
       if(diagnostics) then
          call do_diagnostics(n,nlev,buoy_method,dt,u_taus,u_taub,I_0,heat)
       end if
+#else
+      call do_diagnostics(nlev)
+      call output_manager_save(julianday,secondsofday,int(n))
+#endif
 
    end do
    STDERR LINE
@@ -498,6 +561,7 @@
    if (turb_method .ne. 99) then
       call variances(nlev,SSU,SSV)
    endif
+#if !defined(_FLEXIBLE_OUTPUT_)
    call do_output(n,nlev)
 #ifdef SEAGRASS
    if (seagrass_calc) call save_seagrass()
@@ -507,6 +571,7 @@
 #endif
 #ifdef _FABM_
    call do_gotm_fabm_output(nlev,initial=n==0_timestepkind)
+#endif
 #endif
 
    end subroutine do_all_output
@@ -540,7 +605,9 @@
 
    LEVEL1 'clean_up'
 
+#if !defined(_FLEXIBLE_OUTPUT_)
    call close_output()
+#endif
 
    call clean_air_sea()
 
@@ -560,10 +627,18 @@
 
 #ifdef _FABM_
    call clean_gotm_fabm()
+#if !defined(_FLEXIBLE_OUTPUT_)
    call clean_gotm_fabm_output()
+#endif
 #endif
 
    call close_input()
+
+#if defined(_FLEXIBLE_OUTPUT_)
+   call output_manager_clean()
+#endif
+
+   call fm%finalize()
 
    return
    end subroutine clean_up
@@ -614,6 +689,22 @@
 
    end subroutine print_state
 !EOC
+#endif
+
+#if defined(_FLEXIBLE_OUTPUT_)
+   subroutine gotm_host_julian_day(self,yyyy,mm,dd,julian)
+      class (type_gotm_host), intent(in) :: self
+      integer, intent(in)  :: yyyy,mm,dd
+      integer, intent(out) :: julian
+      call julian_day(yyyy,mm,dd,julian)
+   end subroutine
+
+   subroutine gotm_host_calendar_date(self,julian,yyyy,mm,dd)
+      class (type_gotm_host), intent(in) :: self
+      integer, intent(in)  :: julian
+      integer, intent(out) :: yyyy,mm,dd
+      call calendar_date(julian,yyyy,mm,dd)
+   end subroutine
 #endif
 
 !-----------------------------------------------------------------------
