@@ -94,6 +94,27 @@ add_library(util
            )
 set_property(TARGET util PROPERTY Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules)
 
+add_library(airsea_utils
+            airsea/airsea_fluxes.F90
+            airsea/airsea_variables.F90
+            airsea/albedo_water.F90
+            airsea/back_radiation.F90
+            airsea/fairall.F90
+            airsea/humidity.F90
+            airsea/kondo.F90
+            airsea/short_wave_radiation.F90
+            airsea/solar_zenith_angle.F90
+           )
+set_property(TARGET airsea_utils APPEND PROPERTY COMPILE_DEFINITIONS GUSTINESS)
+set_property(TARGET airsea_utils PROPERTY Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules)
+
+add_library(ice_utils
+            ice/ice_uvic.F90
+            ice/ice_winton.F90
+           )
+set_property(TARGET ice_utils PROPERTY Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules)
+target_link_libraries(ice_utils airsea_utils)
+
 add_library(turbulence
             turbulence/algebraiclength.F90
             turbulence/alpha_mnb.F90
@@ -158,7 +179,7 @@ add_library(turbulence
 target_link_libraries(turbulence util)
 set_property(TARGET turbulence PROPERTY Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules)
 
-set_property(TARGET util turbulence PROPERTY FOLDER gotm)
+set_property(TARGET util airsea_utils ice_utils turbulence PROPERTY FOLDER gotm)
 
 if(GOTM_USE_FABM)
   find_path(FABM_BASE src/fabm.F90 DOC "Path to FABM source directory.")
@@ -208,18 +229,8 @@ add_dependencies(input util)
 
 add_library(airsea OBJECT
             airsea/airsea.F90
-            airsea/airsea_fluxes.F90
-            airsea/airsea_variables.F90
-            airsea/back_radiation.F90
-            airsea/fairall.F90
-            airsea/humidity.F90
-            airsea/kondo.F90
-            airsea/solar_zenith_angle.F90
-            airsea/short_wave_radiation.F90
-            airsea/albedo_water.F90
            )
-set_property(TARGET airsea APPEND PROPERTY COMPILE_DEFINITIONS GUSTINESS)
-add_dependencies(airsea util input)
+add_dependencies(airsea util airsea_utils input)
 
 add_library(observations OBJECT
             observations/analytical_profile.F90
@@ -247,13 +258,19 @@ add_library(meanflow OBJECT
            )
 add_dependencies(meanflow util observations airsea)
 
+add_library(ice OBJECT
+            ice/ice.F90
+           )
+set_property(TARGET ice PROPERTY FOLDER gotm)
+add_dependencies(ice util airsea_utils ice_utils airsea meanflow)
+
 if(NOT GOTM_USE_FLEXIBLE_OUTPUT)
   add_library(output OBJECT
               output/asciiout.F90
               output/ncdfout.F90
               output/output.F90
              )
-  add_dependencies(output util meanflow turbulence observations airsea)
+  add_dependencies(output util airsea_utils meanflow turbulence observations airsea ice)
   set_property(TARGET output PROPERTY FOLDER gotm)
 endif(NOT GOTM_USE_FLEXIBLE_OUTPUT)
 
@@ -262,7 +279,7 @@ add_library(gotm OBJECT
             gotm/diagnostics.F90
             gotm/register_all_variables.F90
            )
-add_dependencies(gotm input util meanflow turbulence observations airsea)
+add_dependencies(gotm input util meanflow turbulence observations airsea ice)
 if(GOTM_USE_FLEXIBLE_OUTPUT)
   add_dependencies(gotm output_manager)
 else()
@@ -271,12 +288,6 @@ else()
 endif()
 
 set_property(TARGET input airsea observations meanflow gotm PROPERTY FOLDER gotm)
-
-#option(GOTM_USE_ICE "Include ICE support" OFF)
-#if(GOTM_USE_ICE)
-#  add_library(ice OBJECT
-#             )
-#endif(GOTM_USE_ICE)
 
 option(GOTM_USE_SEAGRASS "Enable seagrass module" OFF)
 if(GOTM_USE_SEAGRASS)
@@ -315,12 +326,13 @@ add_executable(gotm_exe
                $<TARGET_OBJECTS:gotm>
                $<TARGET_OBJECTS:airsea>
                $<TARGET_OBJECTS:meanflow>
+               $<TARGET_OBJECTS:ice>
                $<TARGET_OBJECTS:observations>
                $<TARGET_OBJECTS:input>
                ${EXTRA_SRCS}
               )
 set_property(TARGET gotm_exe PROPERTY OUTPUT_NAME "gotm")
-target_link_libraries(gotm_exe turbulence util)
+target_link_libraries(gotm_exe turbulence ice_utils airsea_utils util)
 if(GOTM_USE_FLEXIBLE_OUTPUT)
   target_link_libraries(gotm_exe output_manager)
 endif()
@@ -356,7 +368,7 @@ endif()
 
 # Install GOTM library and include files, unless the host overruled this.
 install(TARGETS gotm_exe DESTINATION bin)
-install(TARGETS turbulence util DESTINATION lib)
+install(TARGETS util airsea_utils ice_utils turbulence DESTINATION lib)
 if(GOTM_USE_FABM)
   install(TARGETS gotm_fabm DESTINATION lib)
 endif()

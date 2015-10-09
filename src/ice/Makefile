@@ -7,12 +7,15 @@ include ../Rules.make
 LIB	= ../../libice$(buildtype).a
 LIB	:= $(LIBDIR)/libice$(buildtype).a
 
+LIB1	= ../../libice_utils$(buildtype).a
+LIB1	:= $(LIBDIR)/libice_utils$(buildtype).a
+
 DOCSRC	=\
 ice.F90			\
 
 MOD	= \
-${LIB}(ice_uvic.o)	\
-${LIB}(ice_winton.o)	\
+${LIB1}(ice_uvic.o)	\
+${LIB1}(ice_winton.o)	\
 ${LIB}(ice.o)
 
 OBJ	= 
@@ -27,7 +30,7 @@ doc:    $(DOCSRC)
 	touch doc
 
 clean:
-	$(RM) -f ${LIB} $(MODDIR)/ice.{m,mod} doc
+	$(RM) -f ${LIB} ${LIB1} $(MODDIR)/ice.{m,mod} doc
 
 realclean: clean
 	$(RM) -f *.o *~
