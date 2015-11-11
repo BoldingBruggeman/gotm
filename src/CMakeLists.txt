@@ -372,6 +372,9 @@ install(TARGETS util airsea_utils ice_utils turbulence DESTINATION lib)
 if(GOTM_USE_FABM)
   install(TARGETS gotm_fabm DESTINATION lib)
 endif()
+if(GOTM_USE_FLEXIBLE_OUTPUT)
+  install(TARGETS output_manager DESTINATION lib)
+endif()
 install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/\${BUILD_TYPE}/ DESTINATION include)
 
 # Begin testing section
